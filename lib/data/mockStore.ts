@@ -14,6 +14,7 @@ import {
   DigitalTwinSnapshot,
   Iteration,
   IterationStageSelection,
+  Lead,
   Machine,
   MechanicalParams,
   MaterialParams,
@@ -44,6 +45,7 @@ const db = {
   iterationSelections: new Map<string, IterationStageSelection>(),
   twinSnapshots: new Map<string, DigitalTwinSnapshot>(),
   reports: new Map<string, Report>(),
+  leads: new Map<string, Lead>(),
 };
 
 let seeded = false;
@@ -338,5 +340,19 @@ export const mockReports = {
     return Array.from(db.reports.values())
       .filter((r) => r.iteration_id === iterationId)
       .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Leads (public marketing landing page submissions)
+// ---------------------------------------------------------------------------
+export const mockLeads = {
+  create(input: Omit<Lead, "id" | "created_at">): Lead {
+    const id = uuid();
+    const lead: Lead = { ...input, id, created_at: now() };
+    db.leads.set(id, lead);
+    // No admin UI for leads in mock mode; log so they're visible in dev.
+    console.log("[mock] new lead captured:", lead);
+    return lead;
   },
 };

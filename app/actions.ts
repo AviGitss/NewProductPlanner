@@ -11,6 +11,7 @@ import { getCurrentUserId } from "@/lib/auth";
 import {
   createComponent,
   createIteration,
+  createLead,
   createProcessDefinition,
   createProject,
   createReport,
@@ -207,4 +208,40 @@ export async function refreshTwinAction(iterationId: string, projectId: string) 
 export async function generateReportAction(iterationId: string, projectId: string, content: Record<string, unknown>) {
   await createReport({ iteration_id: iterationId, title: `MfgPlan Report - ${new Date().toLocaleDateString()}`, content });
   revalidatePath(`/projects/${projectId}/iterations/${iterationId}/report`);
+}
+
+/**
+ * Lead-capture form submission from the public marketing landing page
+ * (app/page.tsx). Callable directly from a client component. Validates the
+ * required fields server-side (never trust client-side `required` alone)
+ * and returns a plain result object rather than throwing, so the form can
+ * show an inline success/error state without a full error boundary.
+ */
+export type SubmitLeadResult = { ok: true } | { ok: false; error: string };
+
+export async function submitLeadAction(formData: FormData): Promise<SubmitLeadResult> {
+  const name = String(formData.get("name") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim();
+  const company = String(formData.get("company") ?? "").trim();
+  const role = String(formData.get("role") ?? "").trim();
+  const message = String(formData.get("message") ?? "").trim();
+
+  if (!name) return { ok: false, error: "Name is required." };
+  if (!email) return { ok: false, error: "Work email is required." };
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailPattern.test(email)) return { ok: false, error: "Enter a valid email address." };
+
+  try {
+    await createLead({
+      name,
+      email,
+      company: company || null,
+      role: role || null,
+      message: message || null,
+    });
+    return { ok: true };
+  } catch (err) {
+    console.error("submitLeadAction failed:", err);
+    return { ok: false, error: "Something went wrong submitting the form. Please try again." };
+  }
 }

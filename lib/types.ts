@@ -204,3 +204,14 @@ export interface Report {
   content: Record<string, unknown>;
   created_at: string;
 }
+
+export interface Lead {
+  id: string;
+  name: string;
+  email: string;
+  company: string | null;
+  role: string | null;
+  message: string | null;
+  source: string;
+  created_at: string;
+}

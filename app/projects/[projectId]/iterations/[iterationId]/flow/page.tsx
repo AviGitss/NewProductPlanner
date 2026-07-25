@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
+import PlanningStepper from "@/components/PlanningStepper";
 import ProcessFlowDiagram, { FlowStage } from "@/components/ProcessFlowDiagram";
 import {
   getComponent,
@@ -61,6 +62,7 @@ export default async function FlowPage({ params }: { params: { projectId: string
           </Link>
         }
       />
+      <PlanningStepper currentStep="flow" />
       <div className="p-8">
         <ProcessFlowDiagram stages={flowStages} />
       </div>

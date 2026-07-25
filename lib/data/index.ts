@@ -11,6 +11,7 @@ import { getServerSupabaseClient } from "../supabase/server";
 import {
   mockComponents,
   mockIterations,
+  mockLeads,
   mockMachines,
   mockProcess,
   mockProjects,
@@ -24,6 +25,7 @@ import {
   DigitalTwinSnapshot,
   Iteration,
   IterationStageSelection,
+  Lead,
   Machine,
   MechanicalParams,
   MaterialParams,
@@ -397,4 +399,33 @@ export async function getReportByIteration(iterationId: string): Promise<Report 
     .maybeSingle();
   if (error) throw error;
   return data ?? undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Leads (public marketing landing page submissions). Unlike everything
+// else in this module, this is a write-only path from the app's
+// perspective: the anon INSERT RLS policy allows it, but there is
+// intentionally no SELECT policy, so leads are never read back here.
+// ---------------------------------------------------------------------------
+export async function createLead(input: {
+  name: string;
+  email: string;
+  company: string | null;
+  role: string | null;
+  message: string | null;
+}): Promise<Lead> {
+  const supabase = await getServerSupabaseClient();
+  if (!supabase) return mockLeads.create({ ...input, source: "landing_page" });
+  // Deliberately no `.select()` here: the leads table has an INSERT-only
+  // RLS policy for the anon/authenticated roles and no SELECT policy, so a
+  // `RETURNING`/select-after-insert would come back empty (or error) under
+  // RLS. We just insert and synthesize the return value client-side.
+  const { error } = await supabase.from("leads").insert({ ...input, source: "landing_page" });
+  if (error) throw error;
+  return {
+    id: "",
+    created_at: new Date().toISOString(),
+    source: "landing_page",
+    ...input,
+  };
 }

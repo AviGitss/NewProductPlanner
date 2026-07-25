@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
+import PlanningStepper from "@/components/PlanningStepper";
 import ComponentForm from "@/components/ComponentForm";
 import { getProject } from "@/lib/data";
 
@@ -18,6 +19,7 @@ export default async function NewComponentPage({ params }: { params: { projectId
           { label: "New component" },
         ]}
       />
+      <PlanningStepper currentStep="component" />
       <div className="p-8">
         <ComponentForm projectId={project.id} />
       </div>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
+import PlanningStepper from "@/components/PlanningStepper";
 import MachineCard from "@/components/MachineCard";
 import {
   getComponent,
@@ -61,6 +62,7 @@ export default async function RecommendationsPage({
           </div>
         }
       />
+      <PlanningStepper currentStep="recommendations" />
 
       <div className="space-y-8 p-8">
         {stages.map((stage, idx) => {

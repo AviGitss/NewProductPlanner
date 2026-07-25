@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
+import PlanningStepper from "@/components/PlanningStepper";
 import ReportActions, { ReportData } from "@/components/ReportActions";
 import {
   getComponent,
@@ -88,6 +89,7 @@ export default async function ReportPage({ params }: { params: { projectId: stri
         ]}
         actions={<ReportActions report={reportData} />}
       />
+      <PlanningStepper currentStep="report" />
 
       <div className="mx-auto max-w-3xl p-8 print:p-0">
         <div className="card card-pad print:border-0 print:shadow-none">

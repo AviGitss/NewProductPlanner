@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
+import PlanningStepper from "@/components/PlanningStepper";
 import ProcessForm from "@/components/ProcessForm";
 import { getComponent, getProject } from "@/lib/data";
 
@@ -22,6 +23,7 @@ export default async function ProcessDefinitionPage({
           { label: component.name },
         ]}
       />
+      <PlanningStepper currentStep="process" />
       <div className="p-8">
         <ProcessForm componentId={component.id} projectId={project.id} />
       </div>
