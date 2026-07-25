@@ -313,9 +313,24 @@ export async function saveIterationSelections(
   const supabase = await getServerSupabaseClient();
   if (!supabase) return mockIterations.saveSelections(iterationId, selections);
   await supabase.from("iteration_stage_selections").delete().eq("iteration_id", iterationId);
+  // Rebuild each row explicitly (rather than spreading `s`) so that if a
+  // caller accidentally passes an object carrying a stray `id` (e.g. an
+  // IterationStageSelection read back from the DB), it never reaches this
+  // insert. A batch insert where some rows have `id` and others don't makes
+  // PostgREST union the column set and send an explicit `id: null` for the
+  // rows lacking it, which violates the NOT NULL constraint instead of
+  // falling back to the column default — keeping every row's shape
+  // identical (and id-free) avoids that entirely.
+  const rows = selections.map((s) => ({
+    process_stage_id: s.process_stage_id,
+    machine_id: s.machine_id,
+    sequence: s.sequence,
+    score: s.score,
+    iteration_id: iterationId,
+  }));
   const { data, error } = await supabase
     .from("iteration_stage_selections")
-    .insert(selections.map((s) => ({ ...s, iteration_id: iterationId })))
+    .insert(rows)
     .select("*");
   if (error) throw error;
   return (data as IterationStageSelection[]).sort((a, b) => a.sequence - b.sequence);

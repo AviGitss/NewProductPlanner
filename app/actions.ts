@@ -182,7 +182,15 @@ export async function updateStageSelectionAction(
   const sequence = Number(formData.get("sequence"));
 
   const current = await listIterationSelections(iterationId);
-  const others = current.filter((s) => s.process_stage_id !== stageId);
+  // Strip `id` from the retained rows: these came back from listIterationSelections
+  // with their real row id, but the replacement row below has none. Bulk-inserting
+  // a mixed-shape array (some objects with `id`, some without) makes PostgREST union
+  // the columns and send an explicit `id: null` for the rows missing it — which then
+  // violates the NOT NULL constraint instead of falling back to the column default.
+  // Keeping every row in this array uniformly shaped (no `id` key at all) avoids that.
+  const others = current
+    .filter((s) => s.process_stage_id !== stageId)
+    .map(({ id, ...rest }) => rest);
   const updated = [...others, { process_stage_id: stageId, machine_id: machineId, sequence, score }];
 
   await saveIterationSelections(iterationId, updated);
