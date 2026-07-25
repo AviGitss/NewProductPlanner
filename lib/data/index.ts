@@ -6,7 +6,8 @@
 // (lib/data/mockStore.ts). All UI code should import from this module only
 // — never import mockStore or supabaseClient directly from components/pages.
 
-import { getSupabaseClient, isSupabaseConfigured, CAD_BUCKET } from "../supabaseClient";
+import { isSupabaseConfigured, CAD_BUCKET } from "../supabaseClient";
+import { getServerSupabaseClient } from "../supabase/server";
 import {
   mockComponents,
   mockIterations,
@@ -41,7 +42,7 @@ export { isSupabaseConfigured };
 // configured, a fixed demo user otherwise).
 // ---------------------------------------------------------------------------
 export async function getCurrentUser(): Promise<{ id: string; email: string } | null> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return MOCK_USER;
   const { data } = await supabase.auth.getUser();
   if (!data.user) return null;
@@ -52,7 +53,7 @@ export async function getCurrentUser(): Promise<{ id: string; email: string } | 
 // Projects
 // ---------------------------------------------------------------------------
 export async function listProjects(userId: string): Promise<Project[]> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockProjects.list(userId);
   const { data, error } = await supabase
     .from("projects")
@@ -64,7 +65,7 @@ export async function listProjects(userId: string): Promise<Project[]> {
 }
 
 export async function getProject(id: string): Promise<Project | undefined> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockProjects.get(id);
   const { data, error } = await supabase.from("projects").select("*").eq("id", id).maybeSingle();
   if (error) throw error;
@@ -72,7 +73,7 @@ export async function getProject(id: string): Promise<Project | undefined> {
 }
 
 export async function createProject(userId: string, name: string, description: string | null): Promise<Project> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockProjects.create(userId, name, description);
   const { data, error } = await supabase
     .from("projects")
@@ -87,7 +88,7 @@ export async function createProject(userId: string, name: string, description: s
 // Components
 // ---------------------------------------------------------------------------
 export async function listComponents(projectId: string): Promise<Component[]> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockComponents.listByProject(projectId);
   const { data, error } = await supabase
     .from("components")
@@ -99,7 +100,7 @@ export async function listComponents(projectId: string): Promise<Component[]> {
 }
 
 export async function getComponent(id: string): Promise<Component | undefined> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockComponents.get(id);
   const { data, error } = await supabase.from("components").select("*").eq("id", id).maybeSingle();
   if (error) throw error;
@@ -114,7 +115,7 @@ export async function createComponent(input: {
   material: MaterialParams;
   mechanical: MechanicalParams;
 }): Promise<Component> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockComponents.create(input);
   const { data, error } = await supabase.from("components").insert(input).select("*").single();
   if (error) throw error;
@@ -123,7 +124,7 @@ export async function createComponent(input: {
 
 /** Uploads a CAD reference file to Supabase Storage; returns the storage path. No-op stub in mock mode. */
 export async function uploadCadFile(userId: string, file: File): Promise<{ path: string | null; name: string }> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) {
     // Mock mode: nothing is actually persisted; we just remember the file name.
     return { path: null, name: file.name };
@@ -138,7 +139,7 @@ export async function uploadCadFile(userId: string, file: File): Promise<{ path:
 // Process definitions & stages
 // ---------------------------------------------------------------------------
 export async function createProcessDefinition(componentId: string, rawText: string): Promise<ProcessDefinition> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockProcess.createDefinition(componentId, rawText);
   const { data, error } = await supabase
     .from("process_definitions")
@@ -150,7 +151,7 @@ export async function createProcessDefinition(componentId: string, rawText: stri
 }
 
 export async function getProcessDefinition(id: string): Promise<ProcessDefinition | undefined> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockProcess.getDefinition(id);
   const { data, error } = await supabase.from("process_definitions").select("*").eq("id", id).maybeSingle();
   if (error) throw error;
@@ -158,7 +159,7 @@ export async function getProcessDefinition(id: string): Promise<ProcessDefinitio
 }
 
 export async function latestDefinitionForComponent(componentId: string): Promise<ProcessDefinition | undefined> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockProcess.latestDefinitionForComponent(componentId);
   const { data, error } = await supabase
     .from("process_definitions")
@@ -175,7 +176,7 @@ export async function saveProcessStages(
   definitionId: string,
   stages: { sequence: number; stage_type: ProcessType; name: string; description: string; matched_keywords: string[] }[]
 ): Promise<ProcessStage[]> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockProcess.saveStages(definitionId, stages);
   await supabase.from("process_stages").delete().eq("process_definition_id", definitionId);
   const { data, error } = await supabase
@@ -187,7 +188,7 @@ export async function saveProcessStages(
 }
 
 export async function listProcessStages(definitionId: string): Promise<ProcessStage[]> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockProcess.listStages(definitionId);
   const { data, error } = await supabase
     .from("process_stages")
@@ -199,7 +200,7 @@ export async function listProcessStages(definitionId: string): Promise<ProcessSt
 }
 
 export async function getProcessStage(id: string): Promise<ProcessStage | undefined> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockProcess.getStage(id);
   const { data, error } = await supabase.from("process_stages").select("*").eq("id", id).maybeSingle();
   if (error) throw error;
@@ -210,7 +211,7 @@ export async function getProcessStage(id: string): Promise<ProcessStage | undefi
 // Machines
 // ---------------------------------------------------------------------------
 export async function listMachines(): Promise<Machine[]> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockMachines.list();
   const { data, error } = await supabase.from("machines").select("*");
   if (error) throw error;
@@ -218,7 +219,7 @@ export async function listMachines(): Promise<Machine[]> {
 }
 
 export async function listMachinesByProcessType(type: ProcessType): Promise<Machine[]> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockMachines.listByProcessType(type);
   const { data, error } = await supabase.from("machines").select("*").eq("process_type", type);
   if (error) throw error;
@@ -226,7 +227,7 @@ export async function listMachinesByProcessType(type: ProcessType): Promise<Mach
 }
 
 export async function getMachine(id: string): Promise<Machine | undefined> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockMachines.get(id);
   const { data, error } = await supabase.from("machines").select("*").eq("id", id).maybeSingle();
   if (error) throw error;
@@ -240,7 +241,7 @@ export async function saveStageRecommendations(
   stageId: string,
   recs: { machine_id: string; score: number; breakdown: StageRecommendation["breakdown"] }[]
 ): Promise<StageRecommendation[]> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockRecommendations.save(stageId, recs);
   await supabase.from("stage_recommendations").delete().eq("process_stage_id", stageId);
   const { data, error } = await supabase
@@ -252,7 +253,7 @@ export async function saveStageRecommendations(
 }
 
 export async function listStageRecommendations(stageId: string): Promise<StageRecommendation[]> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockRecommendations.listByStage(stageId);
   const { data, error } = await supabase
     .from("stage_recommendations")
@@ -276,7 +277,7 @@ export async function createIteration(input: {
   est_cycle_time_min: number;
   est_cost_usd: number;
 }): Promise<Iteration> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockIterations.create(input);
   const { data, error } = await supabase.from("iterations").insert(input).select("*").single();
   if (error) throw error;
@@ -284,7 +285,7 @@ export async function createIteration(input: {
 }
 
 export async function listIterations(projectId: string): Promise<Iteration[]> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockIterations.listByProject(projectId);
   const { data, error } = await supabase
     .from("iterations")
@@ -296,7 +297,7 @@ export async function listIterations(projectId: string): Promise<Iteration[]> {
 }
 
 export async function getIteration(id: string): Promise<Iteration | undefined> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockIterations.get(id);
   const { data, error } = await supabase.from("iterations").select("*").eq("id", id).maybeSingle();
   if (error) throw error;
@@ -307,7 +308,7 @@ export async function saveIterationSelections(
   iterationId: string,
   selections: { process_stage_id: string; machine_id: string; sequence: number; score: number }[]
 ): Promise<IterationStageSelection[]> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockIterations.saveSelections(iterationId, selections);
   await supabase.from("iteration_stage_selections").delete().eq("iteration_id", iterationId);
   const { data, error } = await supabase
@@ -319,7 +320,7 @@ export async function saveIterationSelections(
 }
 
 export async function listIterationSelections(iterationId: string): Promise<IterationStageSelection[]> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockIterations.listSelections(iterationId);
   const { data, error } = await supabase
     .from("iteration_stage_selections")
@@ -337,7 +338,7 @@ export async function generateTwinSnapshots(
   iterationId: string,
   selections: IterationStageSelection[]
 ): Promise<DigitalTwinSnapshot[]> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockTwin.generateSnapshots(iterationId, selections);
   const statuses = ["running", "running", "running", "idle", "maintenance", "fault"];
   const rows = selections.map((sel) => {
@@ -358,7 +359,7 @@ export async function generateTwinSnapshots(
 }
 
 export async function listTwinSnapshots(iterationId: string): Promise<DigitalTwinSnapshot[]> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockTwin.listByIteration(iterationId);
   const { data, error } = await supabase
     .from("digital_twin_snapshots")
@@ -377,7 +378,7 @@ export async function createReport(input: {
   title: string;
   content: Record<string, unknown>;
 }): Promise<Report> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockReports.create(input);
   const { data, error } = await supabase.from("reports").insert(input).select("*").single();
   if (error) throw error;
@@ -385,7 +386,7 @@ export async function createReport(input: {
 }
 
 export async function getReportByIteration(iterationId: string): Promise<Report | undefined> {
-  const supabase = getSupabaseClient();
+  const supabase = await getServerSupabaseClient();
   if (!supabase) return mockReports.getByIteration(iterationId);
   const { data, error } = await supabase
     .from("reports")

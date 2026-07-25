@@ -1,11 +1,15 @@
 import Link from "next/link";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
+import { getCurrentUser } from "@/lib/data";
+import SignOutButton from "./SignOutButton";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Projects" },
 ];
 
-export default function Sidebar() {
+export default async function Sidebar() {
+  const user = await getCurrentUser();
+
   return (
     <aside className="no-print flex h-screen w-60 flex-shrink-0 flex-col border-r border-slate-200 bg-white">
       <div className="flex items-center gap-2 border-b border-slate-200 px-5 py-4">
@@ -37,7 +41,8 @@ export default function Sidebar() {
           />
           {isSupabaseConfigured ? "Supabase connected" : "Demo mode (mock data)"}
         </div>
-        <div>demo@mfgplan.local</div>
+        <div>{user?.email || "demo@mfgplan.local"}</div>
+        {isSupabaseConfigured && <SignOutButton />}
       </div>
     </aside>
   );

@@ -20,6 +20,7 @@ dimensions/tolerances are entered manually.
 ```
 app/                         Next.js App Router pages + server actions
   actions.ts                 All server actions (form mutations)
+  login/                      Email/password sign-in + sign-up
   dashboard/                 Projects list
   projects/new/               New project form
   projects/[projectId]/
@@ -36,19 +37,24 @@ app/                         Next.js App Router pages + server actions
       report/                    Printable report + jsPDF export
     recommended/                Recommended flow summary (best iteration)
 
-components/                  Shared UI (Sidebar, forms, cards, diagrams)
+components/                  Shared UI (Sidebar, SignOutButton, forms, cards, diagrams)
 
 lib/
   types.ts                   Core domain types + process taxonomy
   processParser.ts           Rule-based NL -> process stage parser
   scoring.ts                 Deterministic machine applicability scoring
   estimate.ts                Simple cycle-time / cost estimation heuristics
-  auth.ts                    Minimal auth helper (mock user fallback)
-  supabaseClient.ts          Supabase client factory (null if unconfigured)
+  auth.ts                    getCurrentUserId(): real session or mock user
+  supabaseClient.ts          isSupabaseConfigured / CAD_BUCKET helpers
+  supabase/
+    server.ts                 Cookie-aware Supabase client (Server Components/Actions)
+    client.ts                 Browser Supabase client (Client Components, e.g. /login)
   data/
     index.ts                 Unified data-access layer (Supabase <-> mock)
     mockStore.ts              In-memory mock repository (demo fallback)
     machineCatalog.ts          Seeded machine catalog (40 machines, 15 process types)
+
+middleware.ts                 Session refresh + route protection (/dashboard, /projects/*)
 
 supabase/
   migrations/0001_init.sql    Table definitions
@@ -162,11 +168,53 @@ State resets whenever the dev server restarts.
    ```bash
    npm run seed
    ```
-6. Enable email/password (or magic link) auth in Supabase Auth settings.
-   `lib/auth.ts` is intentionally minimal in this build — wire a real
-   session reader (e.g. `@supabase/ssr`) for production auth.
+6. Set up authentication (see "Setting up authentication" below) before
+   using the app against this Supabase project — with real Supabase
+   configured, every table is protected by Row Level Security policies
+   that require `auth.uid() = user_id`, so the app is unusable until a
+   real signed-in session exists.
 
-### 4. Build & lint
+### 4. Setting up authentication
+
+Auth is real Supabase email/password auth, wired through `@supabase/ssr`
+(`lib/supabase/server.ts` for Server Components/Actions, `lib/supabase/
+client.ts` for the `/login` page, `middleware.ts` for session refresh +
+route protection). This only applies when `NEXT_PUBLIC_SUPABASE_URL` /
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` are set — in zero-config demo mode there's
+nothing to set up, the app keeps using the fixed mock user.
+
+1. **Enable the email/password provider.** In the Supabase dashboard, go to
+   **Authentication → Providers → Email** and make sure it's enabled
+   (it is by default on new projects).
+2. **Decide on email confirmation.** Go to **Authentication → Settings**
+   (sometimes labeled **Authentication → Providers → Email** →
+   "Confirm email"):
+   - **For quick testing/demos:** toggle **Confirm email off**. Sign-up
+     then returns a session immediately and `/login` redirects straight to
+     `/dashboard` after `supabase.auth.signUp()`.
+   - **Left on (recommended before sharing the app):** sign-up sends a
+     confirmation email and does *not* return a session. The `/login` page
+     detects this (`data.session` is null after `signUp()`) and shows a
+     "check your email" message instead of redirecting. The user must click
+     the link in that email before they can sign in.
+3. **Set Site URL and Redirect URLs.** Go to **Authentication → URL
+   Configuration** and set:
+   - **Site URL** to your deployed app's URL, e.g.
+     `https://mfgplan.vercel.app` (or `http://localhost:3000` for local
+     dev).
+   - **Redirect URLs** to include every origin you use the app from, e.g.
+     both `http://localhost:3000/**` and `https://mfgplan.vercel.app/**`.
+   Supabase rejects auth redirects to URLs not on this list, so a
+   deployed Vercel app with only `localhost` configured here will fail to
+   complete auth flows (most noticeably: email confirmation links).
+4. **No new environment variables are required.** Auth reuses the existing
+   `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` values.
+5. **Known limitations of this build:** no password reset / "forgot
+   password" flow, no OAuth providers (email/password only), and no custom
+   email-confirmation UI beyond Supabase's default hosted confirmation page
+   and the inline "check your email" message on `/login`.
+
+### 5. Build & lint
 
 ```bash
 npm run lint
@@ -208,10 +256,13 @@ git push -u origin main
 
 ## Known limitations / stubs
 
-- **Auth is minimal**: in demo mode a fixed mock user is used everywhere;
-  in Supabase mode `lib/auth.ts` still falls back to the mock user id
-  unless a session-reading helper (e.g. `@supabase/ssr` cookie adapter) is
-  wired into `getCurrentUserId()`. There is no `/login` page in this build.
+- **Auth**: in demo mode a fixed mock user is used everywhere (no
+  `/login` needed). In Supabase mode, real email/password auth via
+  `@supabase/ssr` is wired up (`/login`, `middleware.ts` route protection,
+  cookie-based sessions) — but there is no password reset flow and no
+  OAuth providers, and email confirmation UX is Supabase's default hosted
+  page unless "Confirm email" is turned off (see "Setting up
+  authentication" above).
 - **CAD parsing is explicitly out of scope** — uploads are stored/reference
   only; all dimensions are manually entered.
 - **Mock data layer is in-memory** and resets on dev server restart (not
