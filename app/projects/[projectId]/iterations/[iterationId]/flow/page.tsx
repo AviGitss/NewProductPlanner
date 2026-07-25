@@ -57,9 +57,14 @@ export default async function FlowPage({ params }: { params: { projectId: string
           { label: "Process flow" },
         ]}
         actions={
-          <Link href={`/projects/${project.id}/iterations/${iteration.id}/recommendations`} className="btn-secondary">
-            Back to recommendations
-          </Link>
+          <div className="flex gap-2">
+            <Link href={`/projects/${project.id}/iterations/${iteration.id}/recommendations`} className="btn-secondary">
+              Back to recommendations
+            </Link>
+            <Link href={`/projects/${project.id}/iterations/${iteration.id}/line`} className="btn-primary">
+              Line & KPIs
+            </Link>
+          </div>
         }
       />
       <PlanningStepper currentStep="flow" />

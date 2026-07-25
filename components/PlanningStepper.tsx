@@ -7,7 +7,7 @@
 
 import { WorkflowStepsCompact } from "./WorkflowSteps";
 
-export type PlanningStepKey = "component" | "process" | "recommendations" | "flow" | "twin" | "report";
+export type PlanningStepKey = "component" | "process" | "recommendations" | "flow" | "line" | "twin" | "report";
 
 export default function PlanningStepper({ currentStep }: { currentStep: PlanningStepKey }) {
   return <WorkflowStepsCompact currentKey={currentStep} />;

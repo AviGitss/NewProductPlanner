@@ -15,6 +15,7 @@ import {
   createProcessDefinition,
   createProject,
   createReport,
+  deleteProject,
   generateTwinSnapshots,
   getComponent,
   getIteration,
@@ -24,6 +25,7 @@ import {
   saveIterationSelections,
   saveProcessStages,
   saveStageRecommendations,
+  updateIterationLineConfig,
   uploadCadFile,
 } from "@/lib/data";
 import { parseProcessText, ParsedStage } from "@/lib/processParser";
@@ -39,6 +41,13 @@ export async function createProjectAction(formData: FormData) {
   const project = await createProject(userId, name, description || null);
   revalidatePath("/dashboard");
   redirect(`/projects/${project.id}`);
+}
+
+/** Permanently deletes a project (and, via DB cascade / mock-store filtering, all data derived from it). */
+export async function deleteProjectAction(projectId: string) {
+  await deleteProject(projectId);
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
 }
 
 export async function createComponentAction(projectId: string, formData: FormData) {
@@ -200,6 +209,21 @@ export async function updateStageSelectionAction(
   // current selections, so no further write is needed here.
 
   revalidatePath(`/projects/${projectId}/iterations/${iterationId}/recommendations`);
+}
+
+/** Updates line-layout config (layout type, buffer minutes, variant count) for an iteration and recalculates the KPIs on the line page. */
+export async function updateLineConfigAction(iterationId: string, projectId: string, formData: FormData) {
+  const layoutType = String(formData.get("layout_type") ?? "").trim();
+  const bufferMinutes = Number(formData.get("buffer_minutes") ?? 5);
+  const variantCount = Number(formData.get("variant_count") ?? 1);
+
+  await updateIterationLineConfig(iterationId, {
+    layout_type: layoutType || null,
+    buffer_minutes: Number.isFinite(bufferMinutes) && bufferMinutes > 0 ? bufferMinutes : 5,
+    variant_count: Number.isFinite(variantCount) && variantCount >= 1 ? Math.round(variantCount) : 1,
+  });
+
+  revalidatePath(`/projects/${projectId}/iterations/${iterationId}/line`);
 }
 
 export async function finalizeIterationAction(iterationId: string, projectId: string) {

@@ -86,6 +86,21 @@ export async function createProject(userId: string, name: string, description: s
   return data as Project;
 }
 
+/**
+ * Permanently deletes a project and everything derived from it (components,
+ * process definitions/stages, stage recommendations, iterations, iteration
+ * selections, digital twin snapshots, reports). Every child table's foreign
+ * key chain back to `projects` is declared `on delete cascade` in
+ * supabase/migrations/0001_init.sql, so a single delete on `projects` is
+ * sufficient in the Supabase branch — Postgres handles the cascade.
+ */
+export async function deleteProject(id: string): Promise<void> {
+  const supabase = await getServerSupabaseClient();
+  if (!supabase) return mockProjects.remove(id);
+  const { error } = await supabase.from("projects").delete().eq("id", id);
+  if (error) throw error;
+}
+
 // ---------------------------------------------------------------------------
 // Components
 // ---------------------------------------------------------------------------
@@ -302,6 +317,18 @@ export async function getIteration(id: string): Promise<Iteration | undefined> {
   const supabase = await getServerSupabaseClient();
   if (!supabase) return mockIterations.get(id);
   const { data, error } = await supabase.from("iterations").select("*").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data ?? undefined;
+}
+
+/** Updates the line-layout / capacity-planning config fields on an iteration (see lib/lineCapacity.ts). */
+export async function updateIterationLineConfig(
+  id: string,
+  config: { layout_type: string | null; buffer_minutes: number; variant_count: number }
+): Promise<Iteration | undefined> {
+  const supabase = await getServerSupabaseClient();
+  if (!supabase) return mockIterations.updateLineConfig(id, config);
+  const { data, error } = await supabase.from("iterations").update(config).eq("id", id).select("*").maybeSingle();
   if (error) throw error;
   return data ?? undefined;
 }

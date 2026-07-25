@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
+import DeleteProjectButton from "@/components/DeleteProjectButton";
 import { getProject, listComponents, listIterations } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
@@ -21,16 +22,19 @@ export default async function ProjectPage({ params }: { params: { projectId: str
         subtitle={project.description || undefined}
         crumbs={[{ label: "Projects", href: "/dashboard" }, { label: project.name }]}
         actions={
-          <div className="flex gap-2">
-            <Link href={`/projects/${project.id}/iterations`} className="btn-secondary">
-              Iteration history
-            </Link>
-            <Link href={`/projects/${project.id}/recommended`} className="btn-secondary">
-              Recommended flow
-            </Link>
-            <Link href={`/projects/${project.id}/components/new`} className="btn-primary">
-              + Add component
-            </Link>
+          <div className="flex items-center gap-4">
+            <div className="flex gap-2">
+              <Link href={`/projects/${project.id}/iterations`} className="btn-secondary">
+                Iteration history
+              </Link>
+              <Link href={`/projects/${project.id}/recommended`} className="btn-secondary">
+                Recommended flow
+              </Link>
+              <Link href={`/projects/${project.id}/components/new`} className="btn-primary">
+                + Add component
+              </Link>
+            </div>
+            <DeleteProjectButton projectId={project.id} projectName={project.name} />
           </div>
         }
       />

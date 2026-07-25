@@ -39,6 +39,11 @@ export const WORKFLOW_STEPS: WorkflowStep[] = [
     description: "See the end-to-end process flow as a connected diagram of stages and selected machines.",
   },
   {
+    key: "line",
+    title: "Plan line layout & station KPIs",
+    description: "Set the layout type and buffer sizing, then review throughput, headcount, and WIP per station.",
+  },
+  {
     key: "twin",
     title: "Save & compare iterations",
     description: "Watch simulated digital-twin telemetry, then save, iterate, and compare planning runs.",

@@ -258,9 +258,19 @@ export const mockRecommendations = {
 // Iterations
 // ---------------------------------------------------------------------------
 export const mockIterations = {
-  create(input: Omit<Iteration, "id" | "created_at">): Iteration {
+  create(input: Omit<Iteration, "id" | "created_at" | "layout_type" | "buffer_minutes" | "variant_count">): Iteration {
     const id = uuid();
-    const iteration: Iteration = { ...input, id, created_at: now() };
+    // Line-layout config defaults match the Supabase migration's column
+    // defaults (buffer_minutes: 5, variant_count: 1, layout_type: null) so
+    // mock mode behaves identically to a fresh real-DB row.
+    const iteration: Iteration = {
+      ...input,
+      id,
+      created_at: now(),
+      layout_type: null,
+      buffer_minutes: 5,
+      variant_count: 1,
+    };
     db.iterations.set(id, iteration);
     return iteration;
   },
@@ -271,6 +281,16 @@ export const mockIterations = {
   },
   get(id: string): Iteration | undefined {
     return db.iterations.get(id);
+  },
+  updateLineConfig(
+    id: string,
+    config: { layout_type: string | null; buffer_minutes: number; variant_count: number }
+  ): Iteration | undefined {
+    const existing = db.iterations.get(id);
+    if (!existing) return undefined;
+    const updated: Iteration = { ...existing, ...config };
+    db.iterations.set(id, updated);
+    return updated;
   },
   saveSelections(iterationId: string, selections: Omit<IterationStageSelection, "id" | "iteration_id">[]) {
     for (const [key, val] of db.iterationSelections) {

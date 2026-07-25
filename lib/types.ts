@@ -172,6 +172,11 @@ export interface Iteration {
   est_cycle_time_min: number;
   est_cost_usd: number;
   created_at: string;
+  // Line layout / capacity-planning configuration (see lib/lineCapacity.ts
+  // and app/projects/[projectId]/iterations/[iterationId]/line/page.tsx).
+  layout_type: string | null;
+  buffer_minutes: number;
+  variant_count: number;
 }
 
 export interface IterationStageSelection {

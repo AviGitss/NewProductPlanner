@@ -34,7 +34,7 @@ export default function Home() {
           className="pointer-events-none absolute inset-0 opacity-[0.15]"
           style={{
             backgroundImage:
-              "linear-gradient(to right, #3357f7 1px, transparent 1px), linear-gradient(to bottom, #3357f7 1px, transparent 1px)",
+              "linear-gradient(to right, #8b5cf6 1px, transparent 1px), linear-gradient(to bottom, #8b5cf6 1px, transparent 1px)",
             backgroundSize: "44px 44px",
           }}
           aria-hidden
@@ -94,13 +94,13 @@ export default function Home() {
                     height="46"
                     rx="8"
                     fill="#0f172a"
-                    stroke="#3357f7"
+                    stroke="#8b5cf6"
                     strokeWidth="1.5"
                   />
                   <text x={n.x + 10} y={n.y + 19} fontSize="11" fill="#e2e8f0" fontWeight="600">
                     {n.label}
                   </text>
-                  <text x={n.x + 10} y={n.y + 34} fontSize="10" fill="#5c82ff">
+                  <text x={n.x + 10} y={n.y + 34} fontSize="10" fill="#a78bfa">
                     {n.score}% match
                   </text>
                 </g>

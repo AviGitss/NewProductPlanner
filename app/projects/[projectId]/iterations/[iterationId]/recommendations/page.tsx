@@ -56,6 +56,9 @@ export default async function RecommendationsPage({
             <Link href={`/projects/${project.id}/iterations/${iteration.id}/flow`} className="btn-secondary">
               Process flow
             </Link>
+            <Link href={`/projects/${project.id}/iterations/${iteration.id}/line`} className="btn-secondary">
+              Line & KPIs
+            </Link>
             <Link href={`/projects/${project.id}/iterations/${iteration.id}`} className="btn-primary">
               View digital thread
             </Link>
