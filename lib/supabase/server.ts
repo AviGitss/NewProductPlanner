@@ -10,7 +10,7 @@
 // fall back to the in-memory mock data layer exactly as before.
 
 import { cookies } from "next/headers";
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { createServerClient } from "@supabase/ssr";
 import { isSupabaseConfigured } from "../supabaseClient";
 
 /**
@@ -18,6 +18,16 @@ import { isSupabaseConfigured } from "../supabaseClient";
  * Declared `async` (even though `cookies()` is synchronous on the
  * currently-installed Next.js version) so call sites use `await` uniformly
  * and keep working if/when Next.js moves `cookies()` to an async API.
+ *
+ * Uses the getAll()/setAll() cookie adapter (the current recommended
+ * pattern for @supabase/ssr in the App Router) rather than individual
+ * get()/set()/remove() calls. This matters: Supabase splits the auth
+ * session into multiple chunked cookies (e.g. sb-<ref>-auth-token.0, .1...)
+ * once the JWT exceeds a few KB, and the per-name get/set/remove adapter
+ * does not reliably reassemble/rewrite all chunks — it intermittently drops
+ * or misreads the session for some users, which surfaced as RLS insert
+ * failures ("new row violates row-level security policy") because
+ * auth.uid() came back null even though the user was signed in.
  */
 export async function getServerSupabaseClient() {
   if (!isSupabaseConfigured) return null;
@@ -28,23 +38,18 @@ export async function getServerSupabaseClient() {
 
   return createServerClient(url, anonKey, {
     cookies: {
-      get(name: string) {
-        return cookieStore.get(name)?.value;
+      getAll() {
+        return cookieStore.getAll();
       },
-      set(name: string, value: string, options: CookieOptions) {
+      setAll(cookiesToSet) {
         try {
-          cookieStore.set({ name, value, ...options });
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options);
+          });
         } catch {
-          // `set` is called from a Server Component render, where cookie
+          // `setAll` is called from a Server Component render, where cookie
           // mutation isn't allowed. This is safe to ignore as long as
           // middleware.ts is refreshing the session on every request.
-        }
-      },
-      remove(name: string, options: CookieOptions) {
-        try {
-          cookieStore.set({ name, value: "", ...options });
-        } catch {
-          // See note above.
         }
       },
     },

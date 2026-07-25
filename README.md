@@ -60,6 +60,7 @@ supabase/
   migrations/0001_init.sql    Table definitions
   migrations/0002_rls.sql     Row Level Security policies
   migrations/0003_leads.sql   Public lead-capture table (landing page) + insert-only RLS
+  migrations/0004_fix_iteration_selections_id_default.sql   Backfills a missing id default (see file header)
 
 scripts/seed.ts               Seeds `machines` table in a real Supabase project
 ```
@@ -156,6 +157,8 @@ State resets whenever the dev server restarts.
    - `supabase/migrations/0001_init.sql`
    - `supabase/migrations/0002_rls.sql`
    - `supabase/migrations/0003_leads.sql`
+   - `supabase/migrations/0004_fix_iteration_selections_id_default.sql` — required even on
+     existing projects; see the file header for why.
 3. Create a Storage bucket named `cad-files` (private). The storage RLS
    policy snippet is included as a comment at the bottom of
    `0002_rls.sql` — uncomment and run it after creating the bucket.

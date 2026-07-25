@@ -11,7 +11,7 @@
 // no-op passthrough — the existing mock-user behavior is unchanged.
 
 import { NextResponse, type NextRequest } from "next/server";
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { createServerClient } from "@supabase/ssr";
 
 const PROTECTED_PREFIXES = ["/dashboard", "/projects"];
 
@@ -28,20 +28,19 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
+  // Uses the getAll()/setAll() cookie adapter (see lib/supabase/server.ts
+  // for why this matters — the old per-name get/set/remove adapter doesn't
+  // reliably handle Supabase's chunked auth cookies and caused intermittent
+  // "signed in but auth.uid() is null" RLS failures for some users).
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
-      get(name: string) {
-        return request.cookies.get(name)?.value;
+      getAll() {
+        return request.cookies.getAll();
       },
-      set(name: string, value: string, options: CookieOptions) {
-        request.cookies.set({ name, value, ...options });
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         response = NextResponse.next({ request: { headers: request.headers } });
-        response.cookies.set({ name, value, ...options });
-      },
-      remove(name: string, options: CookieOptions) {
-        request.cookies.set({ name, value: "", ...options });
-        response = NextResponse.next({ request: { headers: request.headers } });
-        response.cookies.set({ name, value: "", ...options });
+        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
       },
     },
   });
