@@ -1,0 +1,69 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import PageHeader from "@/components/PageHeader";
+import ProcessFlowDiagram, { FlowStage } from "@/components/ProcessFlowDiagram";
+import {
+  getComponent,
+  getIteration,
+  getProcessDefinition,
+  getProject,
+  listIterationSelections,
+  listMachines,
+  listProcessStages,
+} from "@/lib/data";
+import { ProcessType } from "@/lib/types";
+
+export const dynamic = "force-dynamic";
+
+export default async function FlowPage({ params }: { params: { projectId: string; iterationId: string } }) {
+  const iteration = await getIteration(params.iterationId);
+  if (!iteration) notFound();
+  const [project, component, definition] = await Promise.all([
+    getProject(params.projectId),
+    getComponent(iteration.component_id),
+    getProcessDefinition(iteration.process_definition_id),
+  ]);
+  if (!project || !component || !definition) notFound();
+
+  const [stages, selections, machines] = await Promise.all([
+    listProcessStages(definition.id),
+    listIterationSelections(iteration.id),
+    listMachines(),
+  ]);
+  const machineMap = new Map(machines.map((m) => [m.id, m]));
+  const selectionMap = new Map(selections.map((s) => [s.process_stage_id, s]));
+
+  const flowStages: FlowStage[] = stages.map((s) => {
+    const sel = selectionMap.get(s.id);
+    return {
+      id: s.id,
+      sequence: s.sequence,
+      name: s.name,
+      stage_type: s.stage_type as ProcessType,
+      machineName: sel ? machineMap.get(sel.machine_id)?.name ?? null : null,
+      score: sel ? sel.score : null,
+    };
+  });
+
+  return (
+    <div>
+      <PageHeader
+        title="Process flow visualization"
+        subtitle={`${component.name} — Iteration "${iteration.name}"`}
+        crumbs={[
+          { label: "Projects", href: "/dashboard" },
+          { label: project.name, href: `/projects/${project.id}` },
+          { label: "Process flow" },
+        ]}
+        actions={
+          <Link href={`/projects/${project.id}/iterations/${iteration.id}/recommendations`} className="btn-secondary">
+            Back to recommendations
+          </Link>
+        }
+      />
+      <div className="p-8">
+        <ProcessFlowDiagram stages={flowStages} />
+      </div>
+    </div>
+  );
+}
