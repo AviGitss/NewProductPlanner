@@ -83,7 +83,18 @@ export default async function LineLayoutPage({
           { label: "Line & KPIs" },
         ]}
       />
-      <PlanningStepper currentStep="line" />
+      <PlanningStepper
+        currentStep="line"
+        hrefs={{
+          component: `/projects/${project.id}/components/${component.id}/process`,
+          process: `/projects/${project.id}/components/${component.id}/process`,
+          recommendations: `/projects/${project.id}/iterations/${iteration.id}/recommendations`,
+          flow: `/projects/${project.id}/iterations/${iteration.id}/flow`,
+          line: `/projects/${project.id}/iterations/${iteration.id}/line`,
+          twin: `/projects/${project.id}/iterations/${iteration.id}/twin`,
+          report: `/projects/${project.id}/iterations/${iteration.id}/report`,
+        }}
+      />
 
       <div className="space-y-6 p-8">
         <section className="card card-pad">

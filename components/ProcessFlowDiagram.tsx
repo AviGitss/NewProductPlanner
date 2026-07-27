@@ -17,7 +17,13 @@ export interface FlowStage {
 const COLUMN_WIDTH = 260;
 const ROW_HEIGHT = 150;
 
-export default function ProcessFlowDiagram({ stages }: { stages: FlowStage[] }) {
+export default function ProcessFlowDiagram({
+  stages,
+  onStageClick,
+}: {
+  stages: FlowStage[];
+  onStageClick?: (stageId: string) => void;
+}) {
   const { nodes, edges } = useMemo(() => {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
@@ -41,12 +47,13 @@ export default function ProcessFlowDiagram({ stages }: { stages: FlowStage[] }) 
         sourcePosition: Position.Bottom,
         targetPosition: Position.Top,
         style: {
-          background: "#233ecf",
+          background: "#7c3aed",
           color: "white",
           borderRadius: 8,
           padding: 10,
           width: 210,
-          border: "1px solid #1a2b84",
+          border: "1px solid #5b21b6",
+          cursor: onStageClick ? "pointer" : "default",
         },
       });
 
@@ -70,6 +77,7 @@ export default function ProcessFlowDiagram({ stages }: { stages: FlowStage[] }) 
           padding: 10,
           width: 210,
           border: "1px solid #cbd5e1",
+          cursor: onStageClick ? "pointer" : "default",
         },
       });
 
@@ -88,18 +96,27 @@ export default function ProcessFlowDiagram({ stages }: { stages: FlowStage[] }) 
           source: `stage-${prev.id}`,
           target: `stage-${stage.id}`,
           markerEnd: { type: MarkerType.ArrowClosed },
-          style: { stroke: "#3357f7", strokeWidth: 2 },
+          style: { stroke: "#8b5cf6", strokeWidth: 2 },
           label: "next",
         });
       }
     });
 
     return { nodes, edges };
-  }, [stages]);
+  }, [stages, onStageClick]);
 
   return (
     <div style={{ height: 420 }} className="card">
-      <ReactFlow nodes={nodes} edges={edges} fitView proOptions={{ hideAttribution: true }}>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        fitView
+        proOptions={{ hideAttribution: true }}
+        onNodeClick={(_, node) => {
+          const stageId = node.id.replace(/^(stage|machine)-/, "");
+          onStageClick?.(stageId);
+        }}
+      >
         <Background gap={16} />
         <Controls showInteractive={false} />
       </ReactFlow>

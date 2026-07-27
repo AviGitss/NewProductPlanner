@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
 import PlanningStepper from "@/components/PlanningStepper";
-import ProcessFlowDiagram, { FlowStage } from "@/components/ProcessFlowDiagram";
+import { FlowStage } from "@/components/ProcessFlowDiagram";
+import ProcessFlowDiagramClient from "@/components/ProcessFlowDiagramClient";
 import {
   getComponent,
   getIteration,
@@ -67,9 +68,20 @@ export default async function FlowPage({ params }: { params: { projectId: string
           </div>
         }
       />
-      <PlanningStepper currentStep="flow" />
+      <PlanningStepper
+        currentStep="flow"
+        hrefs={{
+          component: `/projects/${project.id}/components/${component.id}/process`,
+          process: `/projects/${project.id}/components/${component.id}/process`,
+          recommendations: `/projects/${project.id}/iterations/${iteration.id}/recommendations`,
+          flow: `/projects/${project.id}/iterations/${iteration.id}/flow`,
+          line: `/projects/${project.id}/iterations/${iteration.id}/line`,
+          twin: `/projects/${project.id}/iterations/${iteration.id}/twin`,
+          report: `/projects/${project.id}/iterations/${iteration.id}/report`,
+        }}
+      />
       <div className="p-8">
-        <ProcessFlowDiagram stages={flowStages} />
+        <ProcessFlowDiagramClient stages={flowStages} projectId={project.id} iterationId={iteration.id} />
       </div>
     </div>
   );

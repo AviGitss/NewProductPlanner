@@ -17,8 +17,8 @@ export default function AppChrome({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  // Marketing landing page only — every other route keeps the sidebar.
-  const hideSidebar = pathname === "/";
+  // Marketing landing page and login screen only — every other route keeps the sidebar.
+  const hideSidebar = pathname === "/" || pathname === "/login";
 
   return (
     <div className="flex min-h-screen">

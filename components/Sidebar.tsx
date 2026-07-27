@@ -2,6 +2,8 @@ import Link from "next/link";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import { getCurrentUser } from "@/lib/data";
 import SignOutButton from "./SignOutButton";
+import SidebarContextNav from "./SidebarContextNav";
+import SidebarGuide from "./SidebarGuide";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Projects" },
@@ -22,17 +24,23 @@ export default async function Sidebar() {
         </div>
       </div>
 
-      <nav className="flex-1 space-y-1 px-3 py-4">
-        {NAV_ITEMS.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="block rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-          >
-            {item.label}
-          </Link>
-        ))}
-      </nav>
+      <div className="flex-1 overflow-y-auto">
+        <nav className="space-y-1 px-3 py-4">
+          {NAV_ITEMS.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="block rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+
+        <SidebarContextNav />
+
+        <SidebarGuide />
+      </div>
 
       <div className="border-t border-slate-200 px-4 py-3 text-[11px] text-slate-400">
         <div className="mb-1 flex items-center gap-1.5">

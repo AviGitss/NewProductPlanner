@@ -70,7 +70,18 @@ export default async function DigitalTwinPage({
         ]}
         actions={<RefreshTwinButton iterationId={iteration.id} projectId={project.id} />}
       />
-      <PlanningStepper currentStep="twin" />
+      <PlanningStepper
+        currentStep="twin"
+        hrefs={{
+          component: `/projects/${project.id}/components/${component.id}/process`,
+          process: `/projects/${project.id}/components/${component.id}/process`,
+          recommendations: `/projects/${project.id}/iterations/${iteration.id}/recommendations`,
+          flow: `/projects/${project.id}/iterations/${iteration.id}/flow`,
+          line: `/projects/${project.id}/iterations/${iteration.id}/line`,
+          twin: `/projects/${project.id}/iterations/${iteration.id}/twin`,
+          report: `/projects/${project.id}/iterations/${iteration.id}/report`,
+        }}
+      />
       <div className="p-8">
         <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
           <strong>Simulated data:</strong> utilization, cycle time, status, and last maintenance below are randomized

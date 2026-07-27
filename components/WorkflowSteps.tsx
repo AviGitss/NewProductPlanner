@@ -11,6 +11,8 @@
 // Kept in one place so both surfaces describe the same six steps and stay
 // in sync if the workflow ever changes.
 
+import Link from "next/link";
+
 export interface WorkflowStep {
   key: string;
   title: string;
@@ -88,9 +90,11 @@ export function WorkflowStepsMarketing({ steps = WORKFLOW_STEPS }: { steps?: Wor
 export function WorkflowStepsCompact({
   currentKey,
   steps = WORKFLOW_STEPS,
+  hrefs,
 }: {
   currentKey: string;
   steps?: WorkflowStep[];
+  hrefs?: Partial<Record<string, string>>;
 }) {
   const currentIdx = steps.findIndex((s) => s.key === currentKey);
 
@@ -98,26 +102,45 @@ export function WorkflowStepsCompact({
     <ol className="no-print flex items-center gap-1 overflow-x-auto border-b border-slate-200 bg-white px-8 py-3 text-xs">
       {steps.map((step, i) => {
         const state = i < currentIdx ? "done" : i === currentIdx ? "current" : "upcoming";
+        const href = hrefs?.[step.key];
+
+        const badge = (
+          <span
+            className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+              state === "done"
+                ? "bg-brand-600 text-white"
+                : state === "current"
+                  ? "bg-brand-100 text-brand-700 ring-2 ring-brand-500"
+                  : "bg-slate-100 text-slate-400"
+            }`}
+          >
+            {state === "done" ? "✓" : i + 1}
+          </span>
+        );
+
+        const label = (
+          <span
+            className={`whitespace-nowrap font-medium ${
+              state === "current" ? "text-slate-900" : state === "done" ? "text-slate-500" : "text-slate-400"
+            }`}
+          >
+            {step.title}
+          </span>
+        );
+
         return (
           <li key={step.key} className="flex flex-shrink-0 items-center gap-1">
-            <span
-              className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                state === "done"
-                  ? "bg-brand-600 text-white"
-                  : state === "current"
-                    ? "bg-brand-100 text-brand-700 ring-2 ring-brand-500"
-                    : "bg-slate-100 text-slate-400"
-              }`}
-            >
-              {state === "done" ? "✓" : i + 1}
-            </span>
-            <span
-              className={`whitespace-nowrap font-medium ${
-                state === "current" ? "text-slate-900" : state === "done" ? "text-slate-500" : "text-slate-400"
-              }`}
-            >
-              {step.title}
-            </span>
+            {href ? (
+              <Link href={href} className="flex items-center gap-1 cursor-pointer hover:opacity-80">
+                {badge}
+                {label}
+              </Link>
+            ) : (
+              <>
+                {badge}
+                {label}
+              </>
+            )}
             {i < steps.length - 1 && <span className="mx-2 h-px w-4 flex-shrink-0 bg-slate-200" aria-hidden />}
           </li>
         );

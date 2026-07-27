@@ -58,3 +58,11 @@ body {
     display: none !important;
   }
 }
+
+/* Highlight a section when navigated to via a #stage-<id> URL fragment
+   (e.g. clicking a node in the process flow diagram). */
+section:target {
+  outline: 2px solid #a78bfa;
+  outline-offset: 4px;
+  border-radius: 8px;
+}

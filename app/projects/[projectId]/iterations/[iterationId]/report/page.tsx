@@ -89,7 +89,18 @@ export default async function ReportPage({ params }: { params: { projectId: stri
         ]}
         actions={<ReportActions report={reportData} />}
       />
-      <PlanningStepper currentStep="report" />
+      <PlanningStepper
+        currentStep="report"
+        hrefs={{
+          component: `/projects/${project.id}/components/${component.id}/process`,
+          process: `/projects/${project.id}/components/${component.id}/process`,
+          recommendations: `/projects/${project.id}/iterations/${iteration.id}/recommendations`,
+          flow: `/projects/${project.id}/iterations/${iteration.id}/flow`,
+          line: `/projects/${project.id}/iterations/${iteration.id}/line`,
+          twin: `/projects/${project.id}/iterations/${iteration.id}/twin`,
+          report: `/projects/${project.id}/iterations/${iteration.id}/report`,
+        }}
+      />
 
       <div className="mx-auto max-w-3xl p-8 print:p-0">
         <div className="card card-pad print:border-0 print:shadow-none">

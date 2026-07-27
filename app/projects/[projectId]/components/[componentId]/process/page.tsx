@@ -23,7 +23,13 @@ export default async function ProcessDefinitionPage({
           { label: component.name },
         ]}
       />
-      <PlanningStepper currentStep="process" />
+      <PlanningStepper
+        currentStep="process"
+        hrefs={{
+          component: `/projects/${project.id}/components/${component.id}/process`,
+          process: `/projects/${project.id}/components/${component.id}/process`,
+        }}
+      />
       <div className="p-8">
         <ProcessForm componentId={component.id} projectId={project.id} />
       </div>
