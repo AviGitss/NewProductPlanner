@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import { getCurrentUser } from "@/lib/data";
 import SignOutButton from "./SignOutButton";
@@ -14,14 +15,8 @@ export default async function Sidebar() {
 
   return (
     <aside className="no-print flex h-screen w-60 flex-shrink-0 flex-col border-r border-slate-200 bg-white">
-      <div className="flex items-center gap-2 border-b border-slate-200 px-5 py-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-600 text-sm font-bold text-white">
-          MP
-        </div>
-        <div>
-          <div className="text-sm font-semibold leading-tight">MfgPlan</div>
-          <div className="text-[11px] leading-tight text-slate-400">Line Planning Platform</div>
-        </div>
+      <div className="flex items-center border-b border-slate-200 px-5 py-4">
+        <Image src="/logo.png" alt="Open Netrikkan" width={140} height={35} priority className="h-7 w-auto" />
       </div>
 
       <div className="flex-1 overflow-y-auto">

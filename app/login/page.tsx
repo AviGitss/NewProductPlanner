@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, FormEvent, Suspense } from "react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -81,11 +82,8 @@ function LoginForm() {
 
   return (
     <div className="mx-auto mt-24 max-w-sm rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="mb-6 flex items-center gap-2">
-        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-600 text-sm font-bold text-white">
-          MP
-        </div>
-        <div className="text-sm font-semibold leading-tight text-slate-900">MfgPlan</div>
+      <div className="mb-6 flex items-center">
+        <Image src="/logo.png" alt="Open Netrikkan" width={160} height={40} priority className="h-8 w-auto" />
       </div>
 
       <div className="mb-4 flex rounded-md bg-slate-100 p-1 text-sm font-medium">

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { WorkflowStepsMarketing } from "@/components/WorkflowSteps";
 import LeadCaptureForm from "@/components/LeadCaptureForm";
 
@@ -8,11 +9,8 @@ export default function Home() {
       {/* ---------------- Nav ---------------- */}
       <header className="sticky top-0 z-10 border-b border-slate-800/80 bg-slate-950/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-500 text-sm font-bold text-slate-950">
-              MP
-            </div>
-            <span className="text-sm font-semibold tracking-wide">MfgPlan</span>
+          <div className="flex items-center rounded-md bg-white px-3 py-1.5">
+            <Image src="/logo.png" alt="Open Netrikkan" width={160} height={40} priority className="h-6 w-auto" />
           </div>
           <div className="flex items-center gap-3">
             <Link href="/login" className="text-sm font-medium text-slate-300 hover:text-white">
