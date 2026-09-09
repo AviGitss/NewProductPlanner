@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createComponentAction, extractCadSpecsAction } from "@/app/actions";
 import { MATERIAL_CATALOG, MATERIAL_FAMILIES, getMaterialGrade } from "@/lib/data/materialCatalog";
 import { CadExtractionResult } from "@/lib/cadParser";
+import { getMaterialEquivalents } from "@/lib/materialEquivalents";
 
 // ISO 2768-1 general tolerance grades, simplified to a single representative
 // value per grade rather than the full length-range table. ISO 2768-1
@@ -218,6 +219,24 @@ export default function ComponentForm({ projectId }: { projectId: string }) {
               Selecting a grade auto-fills typical published property values below — edit them if your actual
               material deviates from nominal spec.
             </p>
+            {(() => {
+              const equivalents = getMaterialEquivalents(gradeId);
+              if (equivalents.length === 0) return null;
+              return (
+                <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs">
+                  <p className="font-semibold text-amber-800">
+                    Lead-time-friendly equivalents (curated reference, not live sourcing data)
+                  </p>
+                  <ul className="mt-1 space-y-1 text-amber-900">
+                    {equivalents.map((eq, i) => (
+                      <li key={i}>
+                        <strong>{eq.standard} {eq.grade}</strong> — {eq.note}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })()}
           </div>
           <div>
             <label className="label" htmlFor="tensile_strength_mpa">

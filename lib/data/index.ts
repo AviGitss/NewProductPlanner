@@ -17,6 +17,7 @@ import {
   mockProjects,
   mockRecommendations,
   mockReports,
+  mockRfpWorkflow,
   mockTwin,
   MOCK_COMPANY,
   MOCK_USER,
@@ -30,16 +31,26 @@ import {
   IterationStageSelection,
   Lead,
   Machine,
+  MasterEquipment,
+  MasterMaterial,
   MechanicalParams,
   MaterialParams,
   ProcessDefinition,
   ProcessStage,
   ProcessType,
+  ProcurementSuggestion,
+  ProductionCapacityInput,
   Project,
   Report,
+  RfpDocument,
+  RfpDocumentKind,
+  RfpStageEvent,
   Role,
   StageRecommendation,
 } from "../types";
+import { RfpStage } from "../rfpWorkflow";
+
+const RFP_DOCUMENTS_BUCKET = "rfp-documents";
 
 export { isSupabaseConfigured };
 
@@ -574,4 +585,193 @@ export async function createLead(input: {
     source: "landing_page",
     ...input,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2: staged RFP workflow
+// ---------------------------------------------------------------------------
+
+export async function listStageEvents(projectId: string): Promise<RfpStageEvent[]> {
+  const supabase = await getServerSupabaseClient();
+  if (!supabase) return mockRfpWorkflow.listStageEvents(projectId);
+  const { data, error } = await supabase
+    .from("rfp_stage_events")
+    .select("*")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return data as RfpStageEvent[];
+}
+
+/** Moves a project to a new RFP stage and logs the transition. Role permission is checked by the caller (see lib/rfpWorkflow.ts + app/actions.ts). */
+export async function advanceProjectStage(
+  projectId: string,
+  userId: string,
+  toStage: RfpStage,
+  note?: string
+): Promise<Project> {
+  const supabase = await getServerSupabaseClient();
+  if (!supabase) {
+    const current = mockProjects.get(projectId);
+    mockRfpWorkflow.addStageEvent({ project_id: projectId, from_stage: current?.rfp_stage ?? null, to_stage: toStage, moved_by: userId, note: note ?? null });
+    const updated = mockProjects.update(projectId, { rfp_stage: toStage, rfp_stage_updated_at: new Date().toISOString() });
+    if (!updated) throw new Error("Project not found");
+    return updated;
+  }
+  const { data: current, error: currentError } = await supabase.from("projects").select("rfp_stage").eq("id", projectId).single();
+  if (currentError) throw currentError;
+
+  const { data, error } = await supabase
+    .from("projects")
+    .update({ rfp_stage: toStage, rfp_stage_updated_at: new Date().toISOString() })
+    .eq("id", projectId)
+    .select("*")
+    .single();
+  if (error) throw error;
+
+  const { error: eventError } = await supabase
+    .from("rfp_stage_events")
+    .insert({ project_id: projectId, from_stage: current?.rfp_stage ?? null, to_stage: toStage, moved_by: userId, note: note ?? null });
+  if (eventError) throw eventError;
+
+  return data as Project;
+}
+
+export async function getProductionCapacity(projectId: string): Promise<ProductionCapacityInput | null> {
+  const supabase = await getServerSupabaseClient();
+  if (!supabase) return mockRfpWorkflow.getProductionCapacity(projectId) ?? null;
+  const { data, error } = await supabase.from("production_capacity_inputs").select("*").eq("project_id", projectId).maybeSingle();
+  if (error) throw error;
+  return (data as ProductionCapacityInput) ?? null;
+}
+
+export async function upsertProductionCapacity(input: {
+  project_id: string;
+  available_lines: number | null;
+  shifts_per_day: number | null;
+  hours_per_shift: number | null;
+  oee_pct: number | null;
+  notes: string | null;
+  submitted_by: string;
+}): Promise<ProductionCapacityInput> {
+  const supabase = await getServerSupabaseClient();
+  const record = { ...input, submitted_at: new Date().toISOString() };
+  if (!supabase) return mockRfpWorkflow.upsertProductionCapacity(record);
+  const { data, error } = await supabase
+    .from("production_capacity_inputs")
+    .upsert(record, { onConflict: "project_id" })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as ProductionCapacityInput;
+}
+
+export async function listRfpDocuments(projectId: string): Promise<RfpDocument[]> {
+  const supabase = await getServerSupabaseClient();
+  if (!supabase) return mockRfpWorkflow.listDocuments(projectId);
+  const { data, error } = await supabase.from("rfp_documents").select("*").eq("project_id", projectId).order("created_at", { ascending: false });
+  if (error) throw error;
+  return data as RfpDocument[];
+}
+
+/** Uploads a per-run document (CAD, RFP paperwork, historical-proposal reference, or a manually-exported AutoForm result) into Storage and records it. */
+export async function addRfpDocument(
+  projectId: string,
+  userId: string,
+  kind: RfpDocumentKind,
+  file: File,
+  notes?: string
+): Promise<RfpDocument> {
+  const supabase = await getServerSupabaseClient();
+  if (!supabase) return mockRfpWorkflow.addDocument({ project_id: projectId, kind, file_name: file.name, storage_path: null, notes: notes ?? null, uploaded_by: userId });
+
+  const path = `${projectId}/${Date.now()}_${file.name}`;
+  const { error: uploadError } = await supabase.storage.from(RFP_DOCUMENTS_BUCKET).upload(path, file);
+  if (uploadError) throw uploadError;
+
+  const { data, error } = await supabase
+    .from("rfp_documents")
+    .insert({ project_id: projectId, kind, file_name: file.name, storage_path: path, notes: notes ?? null, uploaded_by: userId })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as RfpDocument;
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3: master data sets
+// ---------------------------------------------------------------------------
+
+export async function listMasterEquipment(companyId: string): Promise<MasterEquipment[]> {
+  const supabase = await getServerSupabaseClient();
+  if (!supabase) return mockRfpWorkflow.listEquipment(companyId);
+  const { data, error } = await supabase.from("master_equipment").select("*").eq("company_id", companyId).order("name");
+  if (error) throw error;
+  return data as MasterEquipment[];
+}
+
+export async function bulkCreateMasterEquipment(
+  companyId: string,
+  rows: { name: string; process_type: string; specs: Record<string, unknown> }[]
+): Promise<MasterEquipment[]> {
+  const supabase = await getServerSupabaseClient();
+  if (!supabase) return rows.map((r) => mockRfpWorkflow.addEquipment({ company_id: companyId, source: "uploaded", ...r }));
+  const { data, error } = await supabase
+    .from("master_equipment")
+    .insert(rows.map((r) => ({ company_id: companyId, source: "uploaded", ...r })))
+    .select("*");
+  if (error) throw error;
+  return data as MasterEquipment[];
+}
+
+export async function listMasterMaterials(companyId: string): Promise<MasterMaterial[]> {
+  const supabase = await getServerSupabaseClient();
+  if (!supabase) return mockRfpWorkflow.listMaterials(companyId);
+  const { data, error } = await supabase.from("master_materials").select("*").eq("company_id", companyId).order("grade_name");
+  if (error) throw error;
+  return data as MasterMaterial[];
+}
+
+export async function bulkCreateMasterMaterials(
+  companyId: string,
+  rows: Omit<MasterMaterial, "id" | "company_id" | "created_at">[]
+): Promise<MasterMaterial[]> {
+  const supabase = await getServerSupabaseClient();
+  if (!supabase) return rows.map((r) => mockRfpWorkflow.addMaterial({ company_id: companyId, ...r }));
+  const { data, error } = await supabase
+    .from("master_materials")
+    .insert(rows.map((r) => ({ company_id: companyId, ...r })))
+    .select("*");
+  if (error) throw error;
+  return data as MasterMaterial[];
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4: equipment-gap procurement suggestions
+// ---------------------------------------------------------------------------
+
+export async function listProcurementSuggestions(projectId: string): Promise<ProcurementSuggestion[]> {
+  const supabase = await getServerSupabaseClient();
+  if (!supabase) return mockRfpWorkflow.listProcurementSuggestions(projectId);
+  const { data, error } = await supabase.from("procurement_suggestions").select("*").eq("project_id", projectId).order("created_at", { ascending: false });
+  if (error) throw error;
+  return data as ProcurementSuggestion[];
+}
+
+export async function createProcurementSuggestion(input: {
+  project_id: string;
+  process_stage_id: string | null;
+  process_type: string;
+  required_specs: Record<string, unknown>;
+  rationale: string;
+}): Promise<ProcurementSuggestion> {
+  const supabase = await getServerSupabaseClient();
+  if (!supabase) return mockRfpWorkflow.addProcurementSuggestion({ ...input, status: "open" });
+  const { data, error } = await supabase
+    .from("procurement_suggestions")
+    .insert({ ...input, status: "open" })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as ProcurementSuggestion;
 }

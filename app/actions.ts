@@ -8,20 +8,29 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getCurrentUserId, getCurrentUserContext } from "@/lib/auth";
-import { requireRole } from "@/lib/rbac";
+import { requireRole, canManageCompany } from "@/lib/rbac";
+import { inviteEmail, rfpStageHandoffEmail, sendEmail } from "@/lib/email";
+import { RfpStage, RFP_STAGE_LABELS, RFP_STAGE_OWNER, canAdvanceFromStage, nextStage } from "@/lib/rfpWorkflow";
 import {
+  addRfpDocument,
+  advanceProjectStage,
+  bulkCreateMasterEquipment,
+  bulkCreateMasterMaterials,
   createCompanyWithAdmin,
   createComponent,
   createIteration,
   createLead,
   createProcessDefinition,
+  createProcurementSuggestion,
   createProject,
   createReport,
   deleteProject,
   generateTwinSnapshots,
   getComponent,
   getIteration,
+  getProject,
   inviteCompanyMember,
+  listCompanyMembers,
   listIterationSelections,
   listMachines,
   listMachinesByProcessType,
@@ -31,11 +40,14 @@ import {
   saveStageRecommendations,
   updateIterationLineConfig,
   updateMemberRole,
+  upsertProductionCapacity,
   uploadCadFile,
 } from "@/lib/data";
+import { RfpDocumentKind } from "@/lib/types";
 import { parseProcessText, ParsedStage } from "@/lib/processParser";
 import { parseCadFile, CadExtractionResult } from "@/lib/cadParser";
 import { rankMachines } from "@/lib/scoring";
+import { PROCESS_TYPE_LABELS } from "@/lib/types";
 import { estimateStage, sumEstimates } from "@/lib/estimate";
 import { MaterialParams, MechanicalParams, ProcessType } from "@/lib/types";
 
@@ -71,7 +83,97 @@ export async function inviteCompanyMemberAction(formData: FormData) {
   const role = String(formData.get("role") ?? "viewer") as Parameters<typeof inviteCompanyMember>[2];
   if (!email) throw new Error("Email is required");
   await inviteCompanyMember(ctx.companyId, email, role);
+
+  const { ROLE_LABELS } = await import("@/lib/rbac");
+  const { getCompany } = await import("@/lib/data");
+  const companyRecord = await getCompany(ctx.companyId);
+  const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "https://newline.opennetrikkan.com"}/login`;
+  const { subject, html } = inviteEmail({ companyName: companyRecord?.name ?? "your team", roleLabel: ROLE_LABELS[role], loginUrl });
+  await sendEmail({ to: email, subject, html });
+
   revalidatePath("/company/team");
+}
+
+/** Moves an RFP to its next workflow stage, logs the transition, and emails whichever role now owns the new stage. */
+export async function advanceRfpStageAction(projectId: string, formData: FormData) {
+  const ctx = await getCurrentUserContext();
+  if (!ctx.companyId) throw new Error("You don't belong to a company yet.");
+  const project = await getProject(projectId);
+  if (!project) throw new Error("Project not found");
+  if (!canAdvanceFromStage(ctx.role, project.rfp_stage)) {
+    throw new Error(`Only ${RFP_STAGE_OWNER[project.rfp_stage] ?? "an admin"} (or an admin) can move this RFP out of ${RFP_STAGE_LABELS[project.rfp_stage]}.`);
+  }
+  const explicitTarget = formData.get("to_stage");
+  const toStage = (explicitTarget ? String(explicitTarget) : nextStage(project.rfp_stage)) as RfpStage | null;
+  if (!toStage) throw new Error("This RFP has no further stage to advance to.");
+  const note = String(formData.get("note") ?? "").trim() || undefined;
+
+  await advanceProjectStage(projectId, ctx.userId, toStage, note);
+
+  // Notify whichever role now owns the new stage.
+  const owner = RFP_STAGE_OWNER[toStage];
+  if (owner) {
+    const members = await listCompanyMembers(ctx.companyId);
+    const targets = members.filter((m) => m.role === owner && m.status === "active" && m.invited_email);
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://newline.opennetrikkan.com";
+    const { subject, html } = rfpStageHandoffEmail({
+      projectName: project.name,
+      stageLabel: RFP_STAGE_LABELS[toStage],
+      actionUrl: `${appUrl}/projects/${projectId}`,
+      note,
+    });
+    await Promise.all(targets.map((m) => sendEmail({ to: m.invited_email as string, subject, html })));
+  }
+
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/sales/dashboard");
+}
+
+/** Production role fills this in as their contribution to the RFP workflow. */
+export async function submitProductionCapacityAction(projectId: string, formData: FormData) {
+  const ctx = await getCurrentUserContext();
+  requireRole(ctx, ["admin", "production"], "submit production capacity data");
+  await upsertProductionCapacity({
+    project_id: projectId,
+    available_lines: formData.get("available_lines") ? Number(formData.get("available_lines")) : null,
+    shifts_per_day: formData.get("shifts_per_day") ? Number(formData.get("shifts_per_day")) : null,
+    hours_per_shift: formData.get("hours_per_shift") ? Number(formData.get("hours_per_shift")) : null,
+    oee_pct: formData.get("oee_pct") ? Number(formData.get("oee_pct")) : null,
+    notes: String(formData.get("notes") ?? "").trim() || null,
+    submitted_by: ctx.userId,
+  });
+  revalidatePath(`/projects/${projectId}`);
+}
+
+/** Manual upload path for CAD files, RFP paperwork, historical-proposal references, and AutoForm result exports — configured per-RFP by whoever preps it. */
+export async function uploadRfpDocumentAction(projectId: string, formData: FormData) {
+  const ctx = await getCurrentUserContext();
+  if (!ctx.companyId) throw new Error("You don't belong to a company yet.");
+  const file = formData.get("file");
+  if (!file || !(file instanceof File) || file.size === 0) throw new Error("Choose a file first.");
+  const kind = String(formData.get("kind") ?? "other") as RfpDocumentKind;
+  const notes = String(formData.get("notes") ?? "").trim() || undefined;
+  await addRfpDocument(projectId, ctx.userId, kind, file, notes);
+  revalidatePath(`/projects/${projectId}`);
+}
+
+/** Admin/rfp_prep-only: bulk-loads the company's master equipment list from a parsed CSV (see components/MasterDataUpload.tsx for the client-side parse). */
+export async function uploadMasterEquipmentAction(rows: { name: string; process_type: string; specs: Record<string, unknown> }[]) {
+  const ctx = await getCurrentUserContext();
+  if (!ctx.companyId) throw new Error("You don't belong to a company yet.");
+  requireRole(ctx, ["admin", "rfp_prep"], "upload the master equipment list");
+  await bulkCreateMasterEquipment(ctx.companyId, rows);
+  revalidatePath("/company/master-data");
+}
+
+export async function uploadMasterMaterialsAction(
+  rows: { grade_name: string; family: string | null; tensile_strength_mpa: number | null; yield_strength_mpa: number | null; hardness_hb: number | null; density_g_cm3: number | null; typical_lead_time_days: number | null; notes: string | null }[]
+) {
+  const ctx = await getCurrentUserContext();
+  if (!ctx.companyId) throw new Error("You don't belong to a company yet.");
+  requireRole(ctx, ["admin", "rfp_prep"], "upload the master material list");
+  await bulkCreateMasterMaterials(ctx.companyId, rows);
+  revalidatePath("/company/master-data");
 }
 
 export async function updateMemberRoleAction(memberId: string, role: string) {
@@ -215,6 +317,12 @@ export async function commitProcessAction(componentId: string, projectId: string
   const selections: { process_stage_id: string; machine_id: string; sequence: number; score: number }[] = [];
   const scores: number[] = [];
 
+  // Below this score, the best-available machine is treated as not really
+  // able to do the job — a gap worth flagging for procurement rather than
+  // silently picking the "least bad" option (Phase 4 of the platform
+  // redesign; see lib/data/index.ts's createProcurementSuggestion).
+  const PROCUREMENT_GAP_THRESHOLD = 50;
+
   for (const stage of savedStages) {
     const candidates = await listMachinesByProcessType(stage.stage_type as ProcessType);
     const ranked = rankMachines(component, candidates);
@@ -231,6 +339,35 @@ export async function commitProcessAction(componentId: string, projectId: string
         score: top.score,
       });
       scores.push(top.score);
+
+      if (top.score < PROCUREMENT_GAP_THRESHOLD) {
+        const weakest = [...top.breakdown].sort((a, b) => a.score - b.score)[0];
+        await createProcurementSuggestion({
+          project_id: projectId,
+          process_stage_id: stage.id,
+          process_type: stage.stage_type,
+          required_specs: {
+            tolerance_mm: component.mechanical.tolerance_mm,
+            surface_finish_ra_um: component.mechanical.surface_finish_ra_um,
+            hardness_hb: component.material.hardness_hb,
+            envelope_mm: [component.mechanical.length_mm, component.mechanical.width_mm, component.mechanical.height_mm],
+          },
+          rationale: `Best available machine for ${PROCESS_TYPE_LABELS[stage.stage_type as ProcessType]} ("${top.machine.name}") only scores ${top.score}% against this part's requirements${weakest ? ` — weakest factor: ${weakest.label} (${weakest.detail})` : ""}. Consider procuring equipment better suited to tolerance ±${component.mechanical.tolerance_mm}mm, Ra ${component.mechanical.surface_finish_ra_um}µm${component.material.hardness_hb ? `, hardness ${component.material.hardness_hb}HB` : ""}.`,
+        });
+      }
+    } else {
+      await createProcurementSuggestion({
+        project_id: projectId,
+        process_stage_id: stage.id,
+        process_type: stage.stage_type,
+        required_specs: {
+          tolerance_mm: component.mechanical.tolerance_mm,
+          surface_finish_ra_um: component.mechanical.surface_finish_ra_um,
+          hardness_hb: component.material.hardness_hb,
+          envelope_mm: [component.mechanical.length_mm, component.mechanical.width_mm, component.mechanical.height_mm],
+        },
+        rationale: `No machine in the catalog is set up for ${PROCESS_TYPE_LABELS[stage.stage_type as ProcessType]} at all. This stage needs new equipment procured before this RFP's line can be built as planned.`,
+      });
     }
   }
 

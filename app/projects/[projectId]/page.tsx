@@ -2,17 +2,30 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
 import DeleteProjectButton from "@/components/DeleteProjectButton";
-import { getProject, listComponents, listIterations } from "@/lib/data";
+import RfpWorkflowPanel from "@/components/RfpWorkflowPanel";
+import { getCurrentUserContext } from "@/lib/auth";
+import {
+  getProductionCapacity,
+  getProject,
+  listComponents,
+  listIterations,
+  listProcurementSuggestions,
+  listRfpDocuments,
+} from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProjectPage({ params }: { params: { projectId: string } }) {
+  const ctx = await getCurrentUserContext();
   const project = await getProject(params.projectId);
   if (!project) notFound();
 
-  const [components, iterations] = await Promise.all([
+  const [components, iterations, productionCapacity, documents, procurementSuggestions] = await Promise.all([
     listComponents(project.id),
     listIterations(project.id),
+    getProductionCapacity(project.id),
+    listRfpDocuments(project.id),
+    listProcurementSuggestions(project.id),
   ]);
 
   return (
@@ -82,6 +95,16 @@ export default async function ProjectPage({ params }: { params: { projectId: str
             </ul>
           )}
         </section>
+      </div>
+
+      <div className="px-8 pb-8">
+        <RfpWorkflowPanel
+          project={project}
+          role={ctx.role}
+          productionCapacity={productionCapacity}
+          documents={documents}
+          procurementSuggestions={procurementSuggestions}
+        />
       </div>
     </div>
   );

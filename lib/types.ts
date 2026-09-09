@@ -63,8 +63,81 @@ export interface Project {
   company_id: string | null;
   name: string;
   description: string | null;
+  rfp_stage: import("./rfpWorkflow").RfpStage;
+  rfp_stage_updated_at: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface RfpStageEvent {
+  id: string;
+  project_id: string;
+  from_stage: string | null;
+  to_stage: string;
+  moved_by: string | null;
+  note: string | null;
+  created_at: string;
+}
+
+export interface ProductionCapacityInput {
+  id: string;
+  project_id: string;
+  available_lines: number | null;
+  shifts_per_day: number | null;
+  hours_per_shift: number | null;
+  oee_pct: number | null;
+  notes: string | null;
+  submitted_by: string | null;
+  submitted_at: string | null;
+  updated_at: string;
+}
+
+export type RfpDocumentKind = "cad" | "rfp_doc" | "proposal_reference" | "autoform_result" | "other";
+
+export interface RfpDocument {
+  id: string;
+  project_id: string;
+  kind: RfpDocumentKind;
+  file_name: string;
+  storage_path: string | null;
+  notes: string | null;
+  uploaded_by: string | null;
+  created_at: string;
+}
+
+export interface MasterEquipment {
+  id: string;
+  company_id: string;
+  name: string;
+  process_type: string;
+  specs: Record<string, unknown>;
+  source: "uploaded" | "seed";
+  created_at: string;
+}
+
+export interface MasterMaterial {
+  id: string;
+  company_id: string;
+  grade_name: string;
+  family: string | null;
+  tensile_strength_mpa: number | null;
+  yield_strength_mpa: number | null;
+  hardness_hb: number | null;
+  density_g_cm3: number | null;
+  typical_lead_time_days: number | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface ProcurementSuggestion {
+  id: string;
+  project_id: string;
+  process_stage_id: string | null;
+  process_type: string;
+  required_specs: Record<string, unknown>;
+  rationale: string;
+  status: "open" | "dismissed" | "procured";
+  created_at: string;
 }
 
 // ---------------------------------------------------------------------------

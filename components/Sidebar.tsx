@@ -34,6 +34,22 @@ export default async function Sidebar() {
               {item.label}
             </Link>
           ))}
+          {(ctx.role === "admin" || ctx.role === "sales") && (
+            <Link
+              href="/sales/dashboard"
+              className="block rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+            >
+              Sales dashboard
+            </Link>
+          )}
+          {(ctx.role === "admin" || ctx.role === "rfp_prep") && (
+            <Link
+              href="/company/master-data"
+              className="block rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+            >
+              Master data
+            </Link>
+          )}
           {ctx.role === "admin" && (
             <Link
               href="/company/team"

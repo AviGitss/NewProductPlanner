@@ -16,12 +16,18 @@ import {
   IterationStageSelection,
   Lead,
   Machine,
+  MasterEquipment,
+  MasterMaterial,
   MechanicalParams,
   MaterialParams,
   ProcessDefinition,
   ProcessStage,
+  ProcurementSuggestion,
+  ProductionCapacityInput,
   Project,
   Report,
+  RfpDocument,
+  RfpStageEvent,
   StageRecommendation,
   TwinStatus,
 } from "../types";
@@ -77,6 +83,8 @@ function seedDemoProjectIfNeeded() {
     company_id: MOCK_COMPANY.id,
     name: "Bracket Line Rollout",
     description: "Sample project pre-loaded for demo purposes.",
+    rfp_stage: "intake",
+    rfp_stage_updated_at: now(),
     created_at: now(),
     updated_at: now(),
   });
@@ -141,11 +149,20 @@ export const mockProjects = {
       company_id: companyId,
       name,
       description,
+      rfp_stage: "intake",
+      rfp_stage_updated_at: now(),
       created_at: now(),
       updated_at: now(),
     };
     db.projects.set(id, project);
     return project;
+  },
+  update(id: string, patch: Partial<Project>): Project | undefined {
+    const existing = db.projects.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...patch };
+    db.projects.set(id, updated);
+    return updated;
   },
   remove(id: string) {
     db.projects.delete(id);
@@ -385,5 +402,77 @@ export const mockLeads = {
     // No admin UI for leads in mock mode; log so they're visible in dev.
     console.log("[mock] new lead captured:", lead);
     return lead;
+  },
+};
+
+// ---------------------------------------------------------------------------
+// RFP workflow (Phase 2) & master data (Phase 3) — minimal mock-mode
+// support so `npm run dev` without Supabase doesn't crash; the real
+// company-scoped behavior lives in the Supabase-backed branch of each
+// lib/data/index.ts function.
+// ---------------------------------------------------------------------------
+const mockDb = {
+  stageEvents: new Map<string, RfpStageEvent>(),
+  productionCapacity: new Map<string, ProductionCapacityInput>(), // keyed by project_id
+  rfpDocuments: new Map<string, RfpDocument>(),
+  masterEquipment: new Map<string, MasterEquipment>(),
+  masterMaterials: new Map<string, MasterMaterial>(),
+  procurementSuggestions: new Map<string, ProcurementSuggestion>(),
+};
+
+export const mockRfpWorkflow = {
+  listStageEvents(projectId: string): RfpStageEvent[] {
+    return Array.from(mockDb.stageEvents.values()).filter((e) => e.project_id === projectId);
+  },
+  addStageEvent(input: Omit<RfpStageEvent, "id" | "created_at">): RfpStageEvent {
+    const id = uuid();
+    const event: RfpStageEvent = { ...input, id, created_at: now() };
+    mockDb.stageEvents.set(id, event);
+    return event;
+  },
+  getProductionCapacity(projectId: string): ProductionCapacityInput | undefined {
+    return mockDb.productionCapacity.get(projectId);
+  },
+  upsertProductionCapacity(input: Omit<ProductionCapacityInput, "id" | "updated_at">): ProductionCapacityInput {
+    const existing = mockDb.productionCapacity.get(input.project_id);
+    const record: ProductionCapacityInput = { ...input, id: existing?.id ?? uuid(), updated_at: now() };
+    mockDb.productionCapacity.set(input.project_id, record);
+    return record;
+  },
+  listDocuments(projectId: string): RfpDocument[] {
+    return Array.from(mockDb.rfpDocuments.values()).filter((d) => d.project_id === projectId);
+  },
+  addDocument(input: Omit<RfpDocument, "id" | "created_at">): RfpDocument {
+    const id = uuid();
+    const doc: RfpDocument = { ...input, id, created_at: now() };
+    mockDb.rfpDocuments.set(id, doc);
+    return doc;
+  },
+  listEquipment(companyId: string): MasterEquipment[] {
+    return Array.from(mockDb.masterEquipment.values()).filter((e) => e.company_id === companyId);
+  },
+  addEquipment(input: Omit<MasterEquipment, "id" | "created_at">): MasterEquipment {
+    const id = uuid();
+    const rec: MasterEquipment = { ...input, id, created_at: now() };
+    mockDb.masterEquipment.set(id, rec);
+    return rec;
+  },
+  listMaterials(companyId: string): MasterMaterial[] {
+    return Array.from(mockDb.masterMaterials.values()).filter((m) => m.company_id === companyId);
+  },
+  addMaterial(input: Omit<MasterMaterial, "id" | "created_at">): MasterMaterial {
+    const id = uuid();
+    const rec: MasterMaterial = { ...input, id, created_at: now() };
+    mockDb.masterMaterials.set(id, rec);
+    return rec;
+  },
+  listProcurementSuggestions(projectId: string): ProcurementSuggestion[] {
+    return Array.from(mockDb.procurementSuggestions.values()).filter((p) => p.project_id === projectId);
+  },
+  addProcurementSuggestion(input: Omit<ProcurementSuggestion, "id" | "created_at">): ProcurementSuggestion {
+    const id = uuid();
+    const rec: ProcurementSuggestion = { ...input, id, created_at: now() };
+    mockDb.procurementSuggestions.set(id, rec);
+    return rec;
   },
 };
