@@ -1,14 +1,18 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
 import DeleteProjectButton from "@/components/DeleteProjectButton";
-import { getCurrentUserId } from "@/lib/auth";
+import { getCurrentUserContext } from "@/lib/auth";
 import { listProjects } from "@/lib/data";
+import { canCreateProject } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const userId = await getCurrentUserId();
-  const projects = await listProjects(userId);
+  const ctx = await getCurrentUserContext();
+  if (!ctx.companyId) redirect("/register-company");
+  const projects = await listProjects(ctx.companyId);
+  const canCreate = canCreateProject(ctx);
 
   return (
     <div>
@@ -16,9 +20,11 @@ export default async function DashboardPage() {
         title="Projects"
         subtitle="Manufacturing line planning projects"
         actions={
-          <Link href="/projects/new" className="btn-primary">
-            + New project
-          </Link>
+          canCreate ? (
+            <Link href="/projects/new" className="btn-primary">
+              + New project
+            </Link>
+          ) : undefined
         }
       />
       <div className="p-8">

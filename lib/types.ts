@@ -60,10 +60,48 @@ export type CostTier = "low" | "medium" | "high" | "premium";
 export interface Project {
   id: string;
   user_id: string;
+  company_id: string | null;
   name: string;
   description: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// Companies & role-based access (Phase 1 of the platform redesign)
+// ---------------------------------------------------------------------------
+
+/**
+ * admin        — manage company, invite/remove members, all RFP actions
+ * sales        — create/monitor RFPs, sees the cross-RFP progress dashboard
+ * rfp_prep     — builds out components/process/machine selection for an RFP
+ * production   — fills in the production-capacity stage of an RFP
+ * viewer       — read-only
+ */
+export type Role = "admin" | "sales" | "rfp_prep" | "production" | "viewer";
+
+export interface Company {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface CompanyMember {
+  id: string;
+  company_id: string;
+  user_id: string | null;
+  invited_email: string | null;
+  role: Role;
+  status: "invited" | "active";
+  created_at: string;
+}
+
+/** Resolved once per request: who the caller is, which company they're acting as, and in what role. */
+export interface UserContext {
+  userId: string;
+  email: string | null;
+  companyId: string | null;
+  role: Role | null;
 }
 
 export interface MaterialParams {

@@ -1,7 +1,9 @@
 import Link from "next/link";
 import Image from "next/image";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
-import { getCurrentUser } from "@/lib/data";
+import { getCurrentUser, getCompany } from "@/lib/data";
+import { getCurrentUserContext } from "@/lib/auth";
+import { ROLE_LABELS } from "@/lib/rbac";
 import SignOutButton from "./SignOutButton";
 import SidebarContextNav from "./SidebarContextNav";
 import SidebarGuide from "./SidebarGuide";
@@ -12,6 +14,8 @@ const NAV_ITEMS = [
 
 export default async function Sidebar() {
   const user = await getCurrentUser();
+  const ctx = await getCurrentUserContext();
+  const company = ctx.companyId ? await getCompany(ctx.companyId) : null;
 
   return (
     <aside className="no-print flex h-screen w-60 flex-shrink-0 flex-col border-r border-slate-200 bg-white">
@@ -30,6 +34,14 @@ export default async function Sidebar() {
               {item.label}
             </Link>
           ))}
+          {ctx.role === "admin" && (
+            <Link
+              href="/company/team"
+              className="block rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+            >
+              Team
+            </Link>
+          )}
         </nav>
 
         <SidebarContextNav />
@@ -44,7 +56,11 @@ export default async function Sidebar() {
           />
           {isSupabaseConfigured ? "Supabase connected" : "Demo mode (mock data)"}
         </div>
-        <div>{user?.email || "demo@mfgplan.local"}</div>
+        {company && <div className="truncate font-medium text-slate-500">{company.name}</div>}
+        <div className="truncate">
+          {user?.email || "demo@mfgplan.local"}
+          {ctx.role && <span className="ml-1 text-slate-300">&middot; {ROLE_LABELS[ctx.role]}</span>}
+        </div>
         {isSupabaseConfigured && <SignOutButton />}
       </div>
     </aside>

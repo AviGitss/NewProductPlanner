@@ -18,9 +18,12 @@ import {
   mockRecommendations,
   mockReports,
   mockTwin,
+  MOCK_COMPANY,
   MOCK_USER,
 } from "./mockStore";
 import {
+  Company,
+  CompanyMember,
   Component,
   DigitalTwinSnapshot,
   Iteration,
@@ -34,6 +37,7 @@ import {
   ProcessType,
   Project,
   Report,
+  Role,
   StageRecommendation,
 } from "../types";
 
@@ -52,15 +56,114 @@ export async function getCurrentUser(): Promise<{ id: string; email: string } | 
 }
 
 // ---------------------------------------------------------------------------
+// Companies & role-based access (Phase 1 of the platform redesign)
+// ---------------------------------------------------------------------------
+
+/** The caller's own active company membership, or null if they haven't registered/joined a company yet. */
+export async function getCompanyMembership(userId: string): Promise<CompanyMember | null> {
+  const supabase = await getServerSupabaseClient();
+  if (!supabase) return { id: "mock-membership", company_id: MOCK_COMPANY.id, user_id: MOCK_USER.id, invited_email: MOCK_USER.email, role: "admin", status: "active", created_at: new Date().toISOString() };
+  const { data, error } = await supabase
+    .from("company_members")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as CompanyMember) ?? null;
+}
+
+/**
+ * Links any pending invitations addressed to this email to the now-signed-in
+ * user, so "invite by email, they claim it on first login" works without a
+ * transactional email/magic-link system. Safe to call on every login — it's
+ * a no-op once there's nothing left to claim. See the
+ * "company_members_claim_own_invite" RLS policy this relies on.
+ */
+export async function claimPendingInvites(userId: string, email: string): Promise<void> {
+  const supabase = await getServerSupabaseClient();
+  if (!supabase || !email) return;
+  await supabase
+    .from("company_members")
+    .update({ user_id: userId, status: "active" })
+    .eq("invited_email", email)
+    .eq("status", "invited")
+    .is("user_id", null);
+}
+
+/** Registers a brand-new company and makes the current user its first admin. */
+export async function createCompanyWithAdmin(userId: string, email: string | null, name: string): Promise<Company> {
+  const supabase = await getServerSupabaseClient();
+  if (!supabase) return { id: MOCK_COMPANY.id, name: MOCK_COMPANY.name, created_at: new Date().toISOString() };
+  const { data: company, error: companyError } = await supabase.from("companies").insert({ name }).select("*").single();
+  if (companyError) throw companyError;
+  const { error: memberError } = await supabase
+    .from("company_members")
+    .insert({ company_id: company.id, user_id: userId, invited_email: email, role: "admin", status: "active" });
+  if (memberError) throw memberError;
+  return company as Company;
+}
+
+export async function getCompany(companyId: string): Promise<Company | null> {
+  const supabase = await getServerSupabaseClient();
+  if (!supabase) return { id: MOCK_COMPANY.id, name: MOCK_COMPANY.name, created_at: new Date().toISOString() };
+  const { data, error } = await supabase.from("companies").select("*").eq("id", companyId).maybeSingle();
+  if (error) throw error;
+  return (data as Company) ?? null;
+}
+
+export async function listCompanyMembers(companyId: string): Promise<CompanyMember[]> {
+  const supabase = await getServerSupabaseClient();
+  if (!supabase) {
+    return [{ id: "mock-membership", company_id: MOCK_COMPANY.id, user_id: MOCK_USER.id, invited_email: MOCK_USER.email, role: "admin", status: "active", created_at: new Date().toISOString() }];
+  }
+  const { data, error } = await supabase
+    .from("company_members")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return data as CompanyMember[];
+}
+
+/** Admin-only (enforced by RLS + the calling server action): invites someone by email with a starting role. */
+export async function inviteCompanyMember(companyId: string, email: string, role: Role): Promise<CompanyMember> {
+  const supabase = await getServerSupabaseClient();
+  if (!supabase) throw new Error("Inviting teammates requires Supabase to be configured.");
+  const { data, error } = await supabase
+    .from("company_members")
+    .insert({ company_id: companyId, invited_email: email, role, status: "invited" })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as CompanyMember;
+}
+
+export async function updateMemberRole(memberId: string, role: Role): Promise<void> {
+  const supabase = await getServerSupabaseClient();
+  if (!supabase) return;
+  const { error } = await supabase.from("company_members").update({ role }).eq("id", memberId);
+  if (error) throw error;
+}
+
+export async function removeCompanyMember(memberId: string): Promise<void> {
+  const supabase = await getServerSupabaseClient();
+  if (!supabase) return;
+  const { error } = await supabase.from("company_members").delete().eq("id", memberId);
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
 // Projects
 // ---------------------------------------------------------------------------
-export async function listProjects(userId: string): Promise<Project[]> {
+export async function listProjects(companyId: string): Promise<Project[]> {
   const supabase = await getServerSupabaseClient();
-  if (!supabase) return mockProjects.list(userId);
+  if (!supabase) return mockProjects.list(companyId);
   const { data, error } = await supabase
     .from("projects")
     .select("*")
-    .eq("user_id", userId)
+    .eq("company_id", companyId)
     .order("created_at", { ascending: false });
   if (error) throw error;
   return data as Project[];
@@ -74,12 +177,12 @@ export async function getProject(id: string): Promise<Project | undefined> {
   return data ?? undefined;
 }
 
-export async function createProject(userId: string, name: string, description: string | null): Promise<Project> {
+export async function createProject(userId: string, companyId: string, name: string, description: string | null): Promise<Project> {
   const supabase = await getServerSupabaseClient();
-  if (!supabase) return mockProjects.create(userId, name, description);
+  if (!supabase) return mockProjects.create(userId, companyId, name, description);
   const { data, error } = await supabase
     .from("projects")
-    .insert({ user_id: userId, name, description })
+    .insert({ user_id: userId, company_id: companyId, name, description })
     .select("*")
     .single();
   if (error) throw error;

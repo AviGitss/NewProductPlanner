@@ -7,8 +7,10 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { getCurrentUserId } from "@/lib/auth";
+import { getCurrentUserId, getCurrentUserContext } from "@/lib/auth";
+import { requireRole } from "@/lib/rbac";
 import {
+  createCompanyWithAdmin,
   createComponent,
   createIteration,
   createLead,
@@ -19,13 +21,16 @@ import {
   generateTwinSnapshots,
   getComponent,
   getIteration,
+  inviteCompanyMember,
   listIterationSelections,
   listMachines,
   listMachinesByProcessType,
+  removeCompanyMember,
   saveIterationSelections,
   saveProcessStages,
   saveStageRecommendations,
   updateIterationLineConfig,
+  updateMemberRole,
   uploadCadFile,
 } from "@/lib/data";
 import { parseProcessText, ParsedStage } from "@/lib/processParser";
@@ -35,13 +40,52 @@ import { estimateStage, sumEstimates } from "@/lib/estimate";
 import { MaterialParams, MechanicalParams, ProcessType } from "@/lib/types";
 
 export async function createProjectAction(formData: FormData) {
-  const userId = await getCurrentUserId();
+  const ctx = await getCurrentUserContext();
+  if (!ctx.companyId) redirect("/register-company");
+  requireRole(ctx, ["admin", "sales", "rfp_prep"], "start a new RFP/project");
   const name = String(formData.get("name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   if (!name) throw new Error("Project name is required");
-  const project = await createProject(userId, name, description || null);
+  const project = await createProject(ctx.userId, ctx.companyId, name, description || null);
   revalidatePath("/dashboard");
   redirect(`/projects/${project.id}`);
+}
+
+/** Registers a brand-new company for a signed-in user who doesn't belong to one yet. */
+export async function registerCompanyAction(formData: FormData) {
+  const ctx = await getCurrentUserContext();
+  if (ctx.companyId) redirect("/dashboard"); // already belongs to a company
+  const name = String(formData.get("company_name") ?? "").trim();
+  if (!name) throw new Error("Company name is required");
+  await createCompanyWithAdmin(ctx.userId, ctx.email, name);
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
+}
+
+/** Admin-only: invite a teammate by email with a starting role (see lib/rbac.ts for what each role can do). */
+export async function inviteCompanyMemberAction(formData: FormData) {
+  const ctx = await getCurrentUserContext();
+  if (!ctx.companyId) throw new Error("You don't belong to a company yet.");
+  requireRole(ctx, ["admin"], "invite teammates");
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const role = String(formData.get("role") ?? "viewer") as Parameters<typeof inviteCompanyMember>[2];
+  if (!email) throw new Error("Email is required");
+  await inviteCompanyMember(ctx.companyId, email, role);
+  revalidatePath("/company/team");
+}
+
+export async function updateMemberRoleAction(memberId: string, role: string) {
+  const ctx = await getCurrentUserContext();
+  requireRole(ctx, ["admin"], "change a teammate's role");
+  await updateMemberRole(memberId, role as Parameters<typeof updateMemberRole>[1]);
+  revalidatePath("/company/team");
+}
+
+export async function removeCompanyMemberAction(memberId: string) {
+  const ctx = await getCurrentUserContext();
+  requireRole(ctx, ["admin"], "remove a teammate");
+  await removeCompanyMember(memberId);
+  revalidatePath("/company/team");
 }
 
 /** Permanently deletes a project (and, via DB cascade / mock-store filtering, all data derived from it). */

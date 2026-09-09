@@ -32,6 +32,14 @@ export const MOCK_USER = {
   email: "demo@mfgplan.local",
 };
 
+// Zero-config demo mode: a single pre-existing company with the mock user
+// as its admin, so the company-registration/RBAC flow doesn't get in the
+// way of `npm run dev` working out of the box with no Supabase project.
+export const MOCK_COMPANY = {
+  id: "00000000-0000-0000-0000-00000000c0c0",
+  name: "Demo Manufacturing Co.",
+};
+
 const now = () => new Date().toISOString();
 
 const db = {
@@ -66,6 +74,7 @@ function seedDemoProjectIfNeeded() {
   db.projects.set(projectId, {
     id: projectId,
     user_id: MOCK_USER.id,
+    company_id: MOCK_COMPANY.id,
     name: "Bracket Line Rollout",
     description: "Sample project pre-loaded for demo purposes.",
     created_at: now(),
@@ -116,19 +125,20 @@ seedDemoProjectIfNeeded();
 // Projects
 // ---------------------------------------------------------------------------
 export const mockProjects = {
-  list(userId: string): Project[] {
+  list(companyId: string): Project[] {
     return Array.from(db.projects.values())
-      .filter((p) => p.user_id === userId)
+      .filter((p) => p.company_id === companyId)
       .sort((a, b) => b.created_at.localeCompare(a.created_at));
   },
   get(id: string): Project | undefined {
     return db.projects.get(id);
   },
-  create(userId: string, name: string, description: string | null): Project {
+  create(userId: string, companyId: string, name: string, description: string | null): Project {
     const id = uuid();
     const project: Project = {
       id,
       user_id: userId,
+      company_id: companyId,
       name,
       description,
       created_at: now(),
