@@ -12,11 +12,14 @@ export default function ProcessForm({
   componentId,
   projectId,
   initialSuggestedText,
+  suggestionSource = "auto",
 }: {
   componentId: string;
   projectId: string;
-  /** Auto-suggested process description from an uploaded CAD file (see lib/cadParser.ts), if any. */
+  /** Auto-suggested process description — from an uploaded CAD file, or a rule-based fallback (see lib/processSuggestion.ts). */
   initialSuggestedText?: string | null;
+  /** "cad" = extracted from the uploaded drawing; "auto" = recommended from the component's material/dimensions. */
+  suggestionSource?: "cad" | "auto";
 }) {
   const hasSuggestion = Boolean(initialSuggestedText && initialSuggestedText.trim());
   const [rawText, setRawText] = useState(initialSuggestedText ?? "");
@@ -88,7 +91,9 @@ export default function ProcessForm({
     <div className="space-y-6">
       {usingSuggestion && (
         <div className="rounded-md border border-brand-200 bg-brand-50 p-3 text-xs text-brand-900">
-          <p className="font-semibold text-brand-800">Suggested process from your CAD drawing</p>
+          <p className="font-semibold text-brand-800">
+            {suggestionSource === "cad" ? "Suggested process from your CAD drawing" : "Process recommended from your component’s material & dimensions"}
+          </p>
           <p className="mt-1">
             Review and edit the description and stages below, or start over and write the process yourself.
           </p>

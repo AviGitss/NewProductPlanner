@@ -3,6 +3,7 @@ import PageHeader from "@/components/PageHeader";
 import PlanningStepper from "@/components/PlanningStepper";
 import ProcessForm from "@/components/ProcessForm";
 import { getComponent, getProject } from "@/lib/data";
+import { suggestProcessFromComponent } from "@/lib/processSuggestion";
 
 export default async function ProcessDefinitionPage({
   params,
@@ -11,6 +12,16 @@ export default async function ProcessDefinitionPage({
 }) {
   const [project, component] = await Promise.all([getProject(params.projectId), getComponent(params.componentId)]);
   if (!project || !component) notFound();
+
+  // The process step always opens with a recommendation, not a blank
+  // textarea: a CAD-derived suggestion (from lib/cadParser.ts) takes
+  // priority when one exists, otherwise the tool falls back to a
+  // rule-based recommendation built from the component's own material and
+  // mechanical parameters (see lib/processSuggestion.ts). Either way, the
+  // user can edit every detected stage or clear it entirely to write the
+  // process themselves before continuing to machine selection.
+  const suggestionSource: "cad" | "auto" = component.suggested_process_text ? "cad" : "auto";
+  const suggestedText = component.suggested_process_text ?? suggestProcessFromComponent(component);
 
   return (
     <div>
@@ -31,7 +42,12 @@ export default async function ProcessDefinitionPage({
         }}
       />
       <div className="p-8">
-        <ProcessForm componentId={component.id} projectId={project.id} initialSuggestedText={component.suggested_process_text} />
+        <ProcessForm
+          componentId={component.id}
+          projectId={project.id}
+          initialSuggestedText={suggestedText}
+          suggestionSource={suggestionSource}
+        />
       </div>
     </div>
   );
