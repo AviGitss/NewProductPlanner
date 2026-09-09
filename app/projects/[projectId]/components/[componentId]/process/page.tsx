@@ -31,7 +31,7 @@ export default async function ProcessDefinitionPage({
         }}
       />
       <div className="p-8">
-        <ProcessForm componentId={component.id} projectId={project.id} />
+        <ProcessForm componentId={component.id} projectId={project.id} initialSuggestedText={component.suggested_process_text} />
       </div>
     </div>
   );

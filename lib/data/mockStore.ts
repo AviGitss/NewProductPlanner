@@ -96,6 +96,7 @@ function seedDemoProjectIfNeeded() {
     cad_file_name: "bracket_rev_c.step",
     material,
     mechanical,
+    suggested_process_text: null,
     created_at: now(),
   });
 

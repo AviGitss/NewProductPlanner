@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { createComponentAction } from "@/app/actions";
+import { createComponentAction, extractCadSpecsAction } from "@/app/actions";
 import { MATERIAL_CATALOG, MATERIAL_FAMILIES, getMaterialGrade } from "@/lib/data/materialCatalog";
+import { CadExtractionResult } from "@/lib/cadParser";
 
 // ISO 2768-1 general tolerance grades, simplified to a single representative
 // value per grade rather than the full length-range table. ISO 2768-1
@@ -34,6 +35,15 @@ const ROUGHNESS_GRADES = [
 export default function ComponentForm({ projectId }: { projectId: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [extraction, setExtraction] = useState<CadExtractionResult | null>(null);
+  const [suggestedProcessText, setSuggestedProcessText] = useState<string>("");
+  const [dismissedSuggestion, setDismissedSuggestion] = useState(false);
+  const [lengthMm, setLengthMm] = useState(220);
+  const [widthMm, setWidthMm] = useState(120);
+  const [heightMm, setHeightMm] = useState(40);
+  const [toleranceMm, setToleranceMm] = useState(0.1);
+  const [surfaceFinishRaUm, setSurfaceFinishRaUm] = useState(1.6);
 
   const [gradeId, setGradeId] = useState<string>("al-6061-t6");
   const initialGrade = getMaterialGrade("al-6061-t6")!;
@@ -82,12 +92,99 @@ export default function ComponentForm({ projectId }: { projectId: string }) {
             type="file"
             accept=".step,.stp,.iges,.igs,.stl,.pdf,.dwg,.dxf,.png,.jpg"
             className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100"
-            onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
+            onChange={async (e) => {
+              const f = e.target.files?.[0] ?? null;
+              setFileName(f?.name ?? null);
+              setExtraction(null);
+              setSuggestedProcessText("");
+              setDismissedSuggestion(false);
+              if (!f) return;
+              const ext = f.name.toLowerCase().split(".").pop();
+              if (ext !== "dwg" && ext !== "dxf") return; // other formats stay reference-only, as before
+              setExtracting(true);
+              try {
+                const fd = new FormData();
+                fd.set("cad_file", f);
+                const result = await extractCadSpecsAction(fd);
+                setExtraction(result);
+                if (result.suggestedProcessText) setSuggestedProcessText(result.suggestedProcessText);
+              } finally {
+                setExtracting(false);
+              }
+            }}
           />
           <p className="mt-1 text-xs text-slate-400">
-            Stored as a reference file only — CAD geometry is not parsed. Enter derived dimensions manually below.
+            .dwg and .dxf files are scanned for material, tolerance, surface finish, and dimension callouts to
+            suggest values below — every other format (STEP, IGES, STL, PDF, image) is stored as a reference file
+            only, with no geometry parsed.
             {fileName && <span className="ml-1 font-medium text-slate-600">Selected: {fileName}</span>}
           </p>
+          {extracting && <p className="mt-2 text-xs text-brand-600">Scanning {fileName} for technical specifications…</p>}
+          {extraction && extraction.supported && !dismissedSuggestion && (
+            <div className="mt-3 rounded-md border border-brand-200 bg-brand-50 p-3 text-xs">
+              <div className="flex items-start justify-between gap-3">
+                <p className="font-semibold text-brand-800">
+                  {extraction.confidence === "low" ? "Low-confidence" : "Suggested"} specs found in {fileName}
+                </p>
+                <button
+                  type="button"
+                  className="shrink-0 text-brand-600 underline hover:text-brand-800"
+                  onClick={() => setDismissedSuggestion(true)}
+                >
+                  Dismiss
+                </button>
+              </div>
+              <ul className="mt-2 space-y-1 text-brand-900">
+                {extraction.suggestedMaterialGradeId && (
+                  <li>Material: {getMaterialGrade(extraction.suggestedMaterialGradeId)?.label}</li>
+                )}
+                {extraction.suggestedToleranceMm !== null && <li>Tolerance: ±{extraction.suggestedToleranceMm} mm</li>}
+                {extraction.suggestedSurfaceFinishRaUm !== null && (
+                  <li>Surface finish: Ra {extraction.suggestedSurfaceFinishRaUm} µm</li>
+                )}
+                {extraction.suggestedDimensions && (
+                  <li>
+                    Dimensions: {extraction.suggestedDimensions.length_mm} × {extraction.suggestedDimensions.width_mm} mm
+                    (from drawing extents — height not derivable, enter manually)
+                  </li>
+                )}
+                {extraction.matchedProcessLabels.length > 0 && (
+                  <li>Likely process steps: {extraction.matchedProcessLabels.join(", ")}</li>
+                )}
+              </ul>
+              {extraction.notes.length > 0 && (
+                <ul className="mt-2 list-disc space-y-0.5 pl-4 text-brand-700">
+                  {extraction.notes.map((n, i) => (
+                    <li key={i}>{n}</li>
+                  ))}
+                </ul>
+              )}
+              <button
+                type="button"
+                className="btn-secondary mt-3"
+                onClick={() => {
+                  if (extraction.suggestedMaterialGradeId) handleGradeChange(extraction.suggestedMaterialGradeId);
+                  if (extraction.suggestedToleranceMm !== null) setToleranceMm(extraction.suggestedToleranceMm);
+                  if (extraction.suggestedSurfaceFinishRaUm !== null) setSurfaceFinishRaUm(extraction.suggestedSurfaceFinishRaUm);
+                  if (extraction.suggestedDimensions) {
+                    setLengthMm(extraction.suggestedDimensions.length_mm);
+                    setWidthMm(extraction.suggestedDimensions.width_mm);
+                  }
+                }}
+              >
+                Apply suggested values to the fields below
+              </button>
+              <p className="mt-2 text-brand-700">
+                Applying only fills the fields — every value stays editable, and the process step (next) will also
+                suggest a starting process description you can edit or replace with your own.
+              </p>
+            </div>
+          )}
+          {extraction && !extraction.supported && (
+            <p className="mt-2 text-xs text-slate-400">
+              This file type isn&rsquo;t auto-parsed — enter specifications manually below.
+            </p>
+          )}
         </div>
       </section>
 
@@ -200,19 +297,19 @@ export default function ComponentForm({ projectId }: { projectId: string }) {
             <label className="label" htmlFor="length_mm">
               Length (mm)
             </label>
-            <input required type="number" step="any" id="length_mm" name="length_mm" className="input" defaultValue={220} />
+            <input required type="number" step="any" id="length_mm" name="length_mm" className="input" value={lengthMm} onChange={(e) => setLengthMm(Number(e.target.value))} />
           </div>
           <div>
             <label className="label" htmlFor="width_mm">
               Width (mm)
             </label>
-            <input required type="number" step="any" id="width_mm" name="width_mm" className="input" defaultValue={120} />
+            <input required type="number" step="any" id="width_mm" name="width_mm" className="input" value={widthMm} onChange={(e) => setWidthMm(Number(e.target.value))} />
           </div>
           <div>
             <label className="label" htmlFor="height_mm">
               Height (mm)
             </label>
-            <input required type="number" step="any" id="height_mm" name="height_mm" className="input" defaultValue={40} />
+            <input required type="number" step="any" id="height_mm" name="height_mm" className="input" value={heightMm} onChange={(e) => setHeightMm(Number(e.target.value))} />
           </div>
           <div>
             <label className="label" htmlFor="weight_kg">
@@ -224,7 +321,7 @@ export default function ComponentForm({ projectId }: { projectId: string }) {
             <label className="label" htmlFor="tolerance_mm">
               Tightest tolerance — ISO 2768-1 grade
             </label>
-            <select id="tolerance_mm" name="tolerance_mm" className="input" defaultValue={0.1}>
+            <select id="tolerance_mm" name="tolerance_mm" className="input" value={toleranceMm} onChange={(e) => setToleranceMm(Number(e.target.value))}>
               {TOLERANCE_GRADES.map((t) => (
                 <option key={t.value} value={t.value}>
                   {t.label}
@@ -240,7 +337,7 @@ export default function ComponentForm({ projectId }: { projectId: string }) {
             <label className="label" htmlFor="surface_finish_ra_um">
               Surface finish — Ra grade (ISO 1302)
             </label>
-            <select id="surface_finish_ra_um" name="surface_finish_ra_um" className="input" defaultValue={1.6}>
+            <select id="surface_finish_ra_um" name="surface_finish_ra_um" className="input" value={surfaceFinishRaUm} onChange={(e) => setSurfaceFinishRaUm(Number(e.target.value))}>
               {ROUGHNESS_GRADES.map((r) => (
                 <option key={r.value} value={r.value}>
                   {r.label}
@@ -250,6 +347,8 @@ export default function ComponentForm({ projectId }: { projectId: string }) {
           </div>
         </div>
       </section>
+
+      <input type="hidden" name="suggested_process_text" value={suggestedProcessText} />
 
       <div className="flex justify-end">
         <button type="submit" disabled={submitting} className="btn-primary">

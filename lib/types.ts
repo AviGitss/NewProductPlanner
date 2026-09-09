@@ -91,6 +91,11 @@ export interface Component {
   cad_file_name: string | null;
   material: MaterialParams;
   mechanical: MechanicalParams;
+  // Auto-suggested process description from lib/cadParser.ts, pre-filled
+  // (but always editable/clearable) on the process-definition step. Null
+  // when no CAD file was parsed, parsing found nothing usable, or the
+  // user is entering the process manually from scratch.
+  suggested_process_text: string | null;
   created_at: string;
 }
 

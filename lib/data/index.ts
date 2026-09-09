@@ -131,6 +131,7 @@ export async function createComponent(input: {
   cad_file_name: string | null;
   material: MaterialParams;
   mechanical: MechanicalParams;
+  suggested_process_text: string | null;
 }): Promise<Component> {
   const supabase = await getServerSupabaseClient();
   if (!supabase) return mockComponents.create(input);

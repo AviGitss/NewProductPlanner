@@ -29,6 +29,7 @@ import {
   uploadCadFile,
 } from "@/lib/data";
 import { parseProcessText, ParsedStage } from "@/lib/processParser";
+import { parseCadFile, CadExtractionResult } from "@/lib/cadParser";
 import { rankMachines } from "@/lib/scoring";
 import { estimateStage, sumEstimates } from "@/lib/estimate";
 import { MaterialParams, MechanicalParams, ProcessType } from "@/lib/types";
@@ -80,6 +81,11 @@ export async function createComponentAction(projectId: string, formData: FormDat
     cad_file_name = result.name;
   }
 
+  // Carried over from the (optional) client-side CAD extraction preview —
+  // see extractCadSpecsAction below. Empty string is normalized to null so
+  // the process page can cleanly check "is there a suggestion or not".
+  const suggestedProcessTextRaw = String(formData.get("suggested_process_text") ?? "").trim();
+
   const component = await createComponent({
     project_id: projectId,
     name,
@@ -87,6 +93,7 @@ export async function createComponentAction(projectId: string, formData: FormDat
     cad_file_name,
     material,
     mechanical,
+    suggested_process_text: suggestedProcessTextRaw || null,
   });
 
   revalidatePath(`/projects/${projectId}`);
@@ -101,6 +108,38 @@ export async function createComponentAction(projectId: string, formData: FormDat
  */
 export async function parseProcessTextAction(text: string): Promise<ParsedStage[]> {
   return parseProcessText(text);
+}
+
+/**
+ * Reads an uploaded .dwg/.dxf file and extracts whatever technical
+ * specifications (material, tolerance, surface finish, overall
+ * dimensions) and process/operation hints it can find — see
+ * lib/cadParser.ts for the extraction approach and its honest limits.
+ * Called directly from ComponentForm as soon as a file is chosen, so the
+ * form can offer to pre-fill itself before the component is even saved.
+ * Every other CAD/reference format (step, iges, stl, pdf, images) returns
+ * `supported: false` and the form falls back to today's manual-entry-only
+ * behavior for those.
+ */
+export async function extractCadSpecsAction(formData: FormData): Promise<CadExtractionResult> {
+  const file = formData.get("cad_file");
+  if (!file || !(file instanceof File) || file.size === 0) {
+    return {
+      supported: false,
+      format: "unsupported",
+      confidence: "none",
+      notes: [],
+      suggestedMaterialGradeId: null,
+      suggestedToleranceMm: null,
+      suggestedSurfaceFinishRaUm: null,
+      suggestedDimensions: null,
+      suggestedProcessText: null,
+      matchedProcessLabels: [],
+      rawTextSample: [],
+    };
+  }
+  const buffer = Buffer.from(await file.arrayBuffer());
+  return parseCadFile(buffer, file.name);
 }
 
 /**

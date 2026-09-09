@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { commitProcessAction, parseProcessTextAction } from "@/app/actions";
 import { ParsedStage } from "@/lib/processParser";
 import { PROCESS_TYPE_LABELS, PROCESS_TYPE_ORDER } from "@/lib/types";
@@ -8,21 +8,46 @@ import { PROCESS_TYPE_LABELS, PROCESS_TYPE_ORDER } from "@/lib/types";
 const PLACEHOLDER =
   "e.g. Cut the blank, then CNC mill the pockets, drill and tap the mounting holes, deburr, then anodize, inspect, assemble, and package.";
 
-export default function ProcessForm({ componentId, projectId }: { componentId: string; projectId: string }) {
-  const [rawText, setRawText] = useState("");
+export default function ProcessForm({
+  componentId,
+  projectId,
+  initialSuggestedText,
+}: {
+  componentId: string;
+  projectId: string;
+  /** Auto-suggested process description from an uploaded CAD file (see lib/cadParser.ts), if any. */
+  initialSuggestedText?: string | null;
+}) {
+  const hasSuggestion = Boolean(initialSuggestedText && initialSuggestedText.trim());
+  const [rawText, setRawText] = useState(initialSuggestedText ?? "");
   const [stages, setStages] = useState<ParsedStage[] | null>(null);
   const [parsing, setParsing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [usingSuggestion, setUsingSuggestion] = useState(hasSuggestion);
 
-  async function handleParse() {
-    if (!rawText.trim()) return;
+  async function handleParse(text: string = rawText) {
+    if (!text.trim()) return;
     setParsing(true);
     try {
-      const parsed = await parseProcessTextAction(rawText);
+      const parsed = await parseProcessTextAction(text);
       setStages(parsed);
     } finally {
       setParsing(false);
     }
+  }
+
+  // If a CAD-derived suggestion came in from the component step, show its
+  // stages immediately rather than making the user click "Parse" for text
+  // they didn't type themselves — they can still edit or clear it below.
+  useEffect(() => {
+    if (hasSuggestion) handleParse(initialSuggestedText ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function clearSuggestionAndWriteManually() {
+    setUsingSuggestion(false);
+    setRawText("");
+    setStages(null);
   }
 
   function updateStage(index: number, patch: Partial<ParsedStage>) {
@@ -61,8 +86,22 @@ export default function ProcessForm({ componentId, projectId }: { componentId: s
 
   return (
     <div className="space-y-6">
+      {usingSuggestion && (
+        <div className="rounded-md border border-brand-200 bg-brand-50 p-3 text-xs text-brand-900">
+          <p className="font-semibold text-brand-800">Suggested process from your CAD drawing</p>
+          <p className="mt-1">
+            Review and edit the description and stages below, or start over and write the process yourself.
+          </p>
+          <button type="button" className="btn-secondary mt-2" onClick={clearSuggestionAndWriteManually}>
+            Clear suggestion &amp; enter process manually
+          </button>
+        </div>
+      )}
+
       <section className="card card-pad space-y-3">
-        <h2 className="text-sm font-semibold text-slate-800">1. Describe the process in plain language</h2>
+        <h2 className="text-sm font-semibold text-slate-800">
+          1. {usingSuggestion ? "Suggested process — edit as needed" : "Describe the process in plain language"}
+        </h2>
         <textarea
           className="textarea"
           placeholder={PLACEHOLDER}
@@ -74,7 +113,15 @@ export default function ProcessForm({ componentId, projectId }: { componentId: s
             Rule-based keyword parsing (see <code>lib/processParser.ts</code>) — not an LLM call. Review and edit the
             detected stages below before generating recommendations.
           </p>
-          <button type="button" className="btn-secondary" disabled={parsing || !rawText.trim()} onClick={handleParse}>
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={parsing || !rawText.trim()}
+            onClick={() => {
+              setUsingSuggestion(false);
+              handleParse();
+            }}
+          >
             {parsing ? "Parsing..." : "Parse into stages"}
           </button>
         </div>
