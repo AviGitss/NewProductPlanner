@@ -46,9 +46,29 @@ export async function middleware(request: NextRequest) {
   });
 
   // Refresh the session (also gives us the current user for route guarding).
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  //
+  // This call hits Supabase's Auth server over the network. Edge middleware
+  // has no built-in timeout, so if that call ever hangs (cold-start on a
+  // paused/free-tier project, transient network issue, etc.) the platform
+  // eventually force-kills the function after ~25s and every request to the
+  // app fails with MIDDLEWARE_INVOCATION_TIMEOUT -- the whole site looks
+  // "down" even though only auth-refresh was slow. Race it against a short
+  // timeout and fail open (treat as unauthenticated) rather than hang.
+  let user = null;
+  try {
+    const { data } = await Promise.race([
+      supabase.auth.getUser(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("auth.getUser timed out")), 8000)
+      ),
+    ]);
+    user = data.user;
+  } catch {
+    // Fail open: let the request through unauthenticated rather than block
+    // the whole app. Protected routes below will still redirect to /login
+    // since `user` stays null; a slow-but-eventually-successful auth check
+    // just means this one request re-checks on the next navigation.
+  }
 
   const { pathname } = request.nextUrl;
   const isProtected = PROTECTED_PREFIXES.some(
